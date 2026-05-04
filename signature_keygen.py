@@ -191,7 +191,7 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             # Шлях до іконки інформації
             info_icon_path = os.path.join(icons_dir, "info.png")
             
-            # Завантажуємо іконку, якщо файл існує
+            # Завантажуємо іконку, якщо файл існує 
             if os.path.exists(info_icon_path):
                 self.icon_info = ctk.CTkImage(
                     Image.open(info_icon_path),
