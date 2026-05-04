@@ -1,12 +1,20 @@
 import customtkinter as ctk
 from tkinter import filedialog
+import threading
+from typing import Callable
+from tkinterdnd2 import TkinterDnD, DND_FILES
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import padding, utils
 
+class CTkWithDND(ctk.CTk, TkinterDnD.DnDWrapper):
+    """Гібридний клас для поєднання CustomTkinter та Drag-and-Drop."""
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.TkdndVersion = TkinterDnD._require(self)
 
-class SignatureSignVerifyApp(ctk.CTk):
+class SignatureSignVerifyApp(CTkWithDND):
     """Програма для підписування файлів і перевірки цифрового підпису."""
 
     def __init__(self) -> None:
@@ -29,6 +37,10 @@ class SignatureSignVerifyApp(ctk.CTk):
 
         self._compact_layout = False
         self._size_mode = "medium"
+        self._operation_thread: threading.Thread | None = None
+        
+        # Константи для chunking
+        self.CHUNK_SIZE = 65536  # 64 KB
 
         self._build_ui()
         self.bind("<Configure>", self._on_window_resize)
@@ -102,23 +114,55 @@ class SignatureSignVerifyApp(ctk.CTk):
         )
         self.sign_button.grid(row=1, column=2, sticky="ew", padx=14, pady=(0, 10))
 
-        self.sign_file_label = ctk.CTkLabel(
+        # Drop Zone для файлу для підпису
+        self.sign_file_drop_frame = ctk.CTkFrame(
             self.sign_frame,
-            text="Файл для підпису: не обрано",
+            border_width=2,
+            border_color="#374151",
+            fg_color="#1f2937",
+            corner_radius=8,
+        )
+        self.sign_file_drop_frame.grid(row=2, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 8))
+        self.sign_file_drop_frame.drop_target_register(DND_FILES)
+        self.sign_file_drop_frame.dnd_bind('<<Drop>>', self._on_drop_sign_file)
+        self.sign_file_drop_frame.dnd_bind('<<DragEnter>>', lambda e: self._on_drag_enter(e, self.sign_file_drop_frame))
+        self.sign_file_drop_frame.dnd_bind('<<DragLeave>>', lambda e: self._on_drag_leave(e, self.sign_file_drop_frame))
+
+        self.sign_file_label = ctk.CTkLabel(
+            self.sign_file_drop_frame,
+            text="Файл для підпису: не обрано (можна перетягнути сюди)",
             anchor="w",
             font=self.body_font,
             wraplength=900,
         )
-        self.sign_file_label.grid(row=2, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 8))
+        self.sign_file_label.pack(padx=16, pady=12, fill="x")
+        self.sign_file_label.drop_target_register(DND_FILES)
+        self.sign_file_label.dnd_bind('<<Drop>>', self._on_drop_sign_file)
+
+        # Drop Zone для приватного ключа
+        self.private_key_drop_frame = ctk.CTkFrame(
+            self.sign_frame,
+            border_width=2,
+            border_color="#374151",
+            fg_color="#1f2937",
+            corner_radius=8,
+        )
+        self.private_key_drop_frame.grid(row=3, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 12))
+        self.private_key_drop_frame.drop_target_register(DND_FILES)
+        self.private_key_drop_frame.dnd_bind('<<Drop>>', self._on_drop_private_key)
+        self.private_key_drop_frame.dnd_bind('<<DragEnter>>', lambda e: self._on_drag_enter(e, self.private_key_drop_frame))
+        self.private_key_drop_frame.dnd_bind('<<DragLeave>>', lambda e: self._on_drag_leave(e, self.private_key_drop_frame))
 
         self.private_key_label = ctk.CTkLabel(
-            self.sign_frame,
-            text="Приватний ключ: не обрано",
+            self.private_key_drop_frame,
+            text="Приватний ключ: не обрано (можна перетягнути сюди)",
             anchor="w",
             font=self.body_font,
             wraplength=900,
         )
-        self.private_key_label.grid(row=3, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 12))
+        self.private_key_label.pack(padx=16, pady=12, fill="x")
+        self.private_key_label.drop_target_register(DND_FILES)
+        self.private_key_label.dnd_bind('<<Drop>>', self._on_drop_private_key)
 
     def _build_verify_section(self) -> None:
         self.select_verify_file_button = ctk.CTkButton(
@@ -157,32 +201,80 @@ class SignatureSignVerifyApp(ctk.CTk):
         )
         self.verify_button.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 10))
 
-        self.verify_file_label = ctk.CTkLabel(
+        # Drop Zone для файлу для перевірки
+        self.verify_file_drop_frame = ctk.CTkFrame(
             self.verify_frame,
-            text="Файл для перевірки: не обрано",
+            border_width=2,
+            border_color="#374151",
+            fg_color="#1f2937",
+            corner_radius=8,
+        )
+        self.verify_file_drop_frame.grid(row=3, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 8))
+        self.verify_file_drop_frame.drop_target_register(DND_FILES)
+        self.verify_file_drop_frame.dnd_bind('<<Drop>>', self._on_drop_verify_file)
+        self.verify_file_drop_frame.dnd_bind('<<DragEnter>>', lambda e: self._on_drag_enter(e, self.verify_file_drop_frame))
+        self.verify_file_drop_frame.dnd_bind('<<DragLeave>>', lambda e: self._on_drag_leave(e, self.verify_file_drop_frame))
+
+        self.verify_file_label = ctk.CTkLabel(
+            self.verify_file_drop_frame,
+            text="Файл для перевірки: не обрано (можна перетягнути сюди)",
             anchor="w",
             font=self.body_font,
             wraplength=900,
         )
-        self.verify_file_label.grid(row=3, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 8))
+        self.verify_file_label.pack(padx=16, pady=12, fill="x")
+        self.verify_file_label.drop_target_register(DND_FILES)
+        self.verify_file_label.dnd_bind('<<Drop>>', self._on_drop_verify_file)
+
+        # Drop Zone для публічного ключа
+        self.public_key_drop_frame = ctk.CTkFrame(
+            self.verify_frame,
+            border_width=2,
+            border_color="#374151",
+            fg_color="#1f2937",
+            corner_radius=8,
+        )
+        self.public_key_drop_frame.grid(row=4, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 8))
+        self.public_key_drop_frame.drop_target_register(DND_FILES)
+        self.public_key_drop_frame.dnd_bind('<<Drop>>', self._on_drop_public_key)
+        self.public_key_drop_frame.dnd_bind('<<DragEnter>>', lambda e: self._on_drag_enter(e, self.public_key_drop_frame))
+        self.public_key_drop_frame.dnd_bind('<<DragLeave>>', lambda e: self._on_drag_leave(e, self.public_key_drop_frame))
 
         self.public_key_label = ctk.CTkLabel(
-            self.verify_frame,
-            text="Публічний ключ: не обрано",
+            self.public_key_drop_frame,
+            text="Публічний ключ: не обрано (можна перетягнути сюди)",
             anchor="w",
             font=self.body_font,
             wraplength=900,
         )
-        self.public_key_label.grid(row=4, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 8))
+        self.public_key_label.pack(padx=16, pady=12, fill="x")
+        self.public_key_label.drop_target_register(DND_FILES)
+        self.public_key_label.dnd_bind('<<Drop>>', self._on_drop_public_key)
+
+        # Drop Zone для файлу підпису
+        self.signature_drop_frame = ctk.CTkFrame(
+            self.verify_frame,
+            border_width=2,
+            border_color="#374151",
+            fg_color="#1f2937",
+            corner_radius=8,
+        )
+        self.signature_drop_frame.grid(row=5, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 12))
+        self.signature_drop_frame.drop_target_register(DND_FILES)
+        self.signature_drop_frame.dnd_bind('<<Drop>>', self._on_drop_signature_file)
+        self.signature_drop_frame.dnd_bind('<<DragEnter>>', lambda e: self._on_drag_enter(e, self.signature_drop_frame))
+        self.signature_drop_frame.dnd_bind('<<DragLeave>>', lambda e: self._on_drag_leave(e, self.signature_drop_frame))
 
         self.signature_label = ctk.CTkLabel(
-            self.verify_frame,
-            text="Файл підпису: не обрано",
+            self.signature_drop_frame,
+            text="Файл підпису: не обрано (можна перетягнути сюди)",
             anchor="w",
             font=self.body_font,
             wraplength=900,
         )
-        self.signature_label.grid(row=5, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 12))
+        self.signature_label.pack(padx=16, pady=12, fill="x")
+        self.signature_label.drop_target_register(DND_FILES)
+        self.signature_label.dnd_bind('<<Drop>>', self._on_drop_signature_file)
 
     def _set_status(self, message: str, color: str) -> None:
         self.status_label.configure(text=message, text_color=color)
@@ -202,30 +294,30 @@ class SignatureSignVerifyApp(ctk.CTk):
             self.select_sign_file_button.grid_configure(row=1, column=0, columnspan=3)
             self.select_private_key_button.grid_configure(row=2, column=0, columnspan=3)
             self.sign_button.grid_configure(row=3, column=0, columnspan=3)
-            self.sign_file_label.grid_configure(row=4, column=0, columnspan=3)
-            self.private_key_label.grid_configure(row=5, column=0, columnspan=3)
+            self.sign_file_drop_frame.grid_configure(row=4, column=0, columnspan=3)
+            self.private_key_drop_frame.grid_configure(row=5, column=0, columnspan=3)
 
             self.select_verify_file_button.grid_configure(row=1, column=0, columnspan=3)
             self.select_public_key_button.grid_configure(row=2, column=0, columnspan=3)
             self.select_signature_button.grid_configure(row=3, column=0, columnspan=3)
             self.verify_button.grid_configure(row=4, column=0, columnspan=3)
-            self.verify_file_label.grid_configure(row=5, column=0, columnspan=3)
-            self.public_key_label.grid_configure(row=6, column=0, columnspan=3)
-            self.signature_label.grid_configure(row=7, column=0, columnspan=3)
+            self.verify_file_drop_frame.grid_configure(row=5, column=0, columnspan=3)
+            self.public_key_drop_frame.grid_configure(row=6, column=0, columnspan=3)
+            self.signature_drop_frame.grid_configure(row=7, column=0, columnspan=3)
         else:
             self.select_sign_file_button.grid_configure(row=1, column=0, columnspan=1)
             self.select_private_key_button.grid_configure(row=1, column=1, columnspan=1)
             self.sign_button.grid_configure(row=1, column=2, columnspan=1)
-            self.sign_file_label.grid_configure(row=2, column=0, columnspan=3)
-            self.private_key_label.grid_configure(row=3, column=0, columnspan=3)
+            self.sign_file_drop_frame.grid_configure(row=2, column=0, columnspan=3)
+            self.private_key_drop_frame.grid_configure(row=3, column=0, columnspan=3)
 
             self.select_verify_file_button.grid_configure(row=1, column=0, columnspan=1)
             self.select_public_key_button.grid_configure(row=1, column=1, columnspan=1)
             self.select_signature_button.grid_configure(row=1, column=2, columnspan=1)
             self.verify_button.grid_configure(row=2, column=0, columnspan=1)
-            self.verify_file_label.grid_configure(row=3, column=0, columnspan=3)
-            self.public_key_label.grid_configure(row=4, column=0, columnspan=3)
-            self.signature_label.grid_configure(row=5, column=0, columnspan=3)
+            self.verify_file_drop_frame.grid_configure(row=3, column=0, columnspan=3)
+            self.public_key_drop_frame.grid_configure(row=4, column=0, columnspan=3)
+            self.signature_drop_frame.grid_configure(row=5, column=0, columnspan=3)
 
         self._update_wrap_lengths(width)
 
@@ -270,12 +362,114 @@ class SignatureSignVerifyApp(ctk.CTk):
         ):
             button.configure(height=button_h)
 
+    def _clean_drop_path(self, path: str) -> str:
+        """Очищує шлях файлу від фігурних дужок."""
+        return path.strip('{}')
+
     def _read_file_bytes(self, path: str) -> bytes | None:
+        """Читає файл повністю для ключів (не для великих файлів)."""
         try:
             with open(path, "rb") as file:
                 return file.read()
         except OSError:
             return None
+
+    def _hash_file_chunks(self, file_path: str) -> hashes.Hash:
+        """Обчислює хеш файлу шматками для економії пам'яті."""
+        hasher = hashes.Hash(hashes.SHA256())
+        try:
+            with open(file_path, "rb") as file:
+                while chunk := file.read(self.CHUNK_SIZE):
+                    hasher.update(chunk)
+        except OSError:
+            raise
+        return hasher
+
+    def _read_file_chunks(self, file_path: str) -> bytes:
+        """Читає файл шматками (тільки для підпису)."""
+        hasher = hashes.Hash(hashes.SHA256())
+        try:
+            with open(file_path, "rb") as file:
+                while chunk := file.read(self.CHUNK_SIZE):
+                    hasher.update(chunk)
+        except OSError:
+            raise
+        return hasher.finalize()
+
+    def _on_drop_sign_file(self, event) -> None:
+        """Обробник перетягування файлу для підпису."""
+        path = self._clean_drop_path(event.data)
+        self.sign_file_path = path
+        self.sign_file_label.configure(text=f"Файл для підпису: {path}")
+        self._set_status("Файл для підпису обрано (drag-and-drop)", "#60a5fa")
+        # Повертаємо колір рамки до стандартного після успішного drop
+        self.sign_file_drop_frame.configure(border_color="#374151")
+
+    def _on_drop_private_key(self, event) -> None:
+        """Обробник перетягування приватного ключа."""
+        path = self._clean_drop_path(event.data)
+        key_bytes = self._read_file_bytes(path)
+        if key_bytes is None:
+            self._set_status("❌ Помилка: Не вдалося прочитати приватний ключ", "#ef4444")
+            self.private_key_drop_frame.configure(border_color="#374151")
+            return
+
+        try:
+            serialization.load_pem_private_key(key_bytes, password=None)
+            self.private_key_data = key_bytes
+            self.private_key_path = path
+            self.private_key_label.configure(text=f"Приватний ключ: {path}")
+            self._set_status("✅ Приватний ключ завантажено (drag-and-drop)", "#22c55e")
+        except ValueError:
+            self._set_status("❌ Помилка: Невірний формат приватного ключа", "#ef4444")
+        # Повертаємо колір рамки до стандартного після обробки
+        self.private_key_drop_frame.configure(border_color="#374151")
+
+    def _on_drop_verify_file(self, event) -> None:
+        """Обробник перетягування файлу для перевірки."""
+        path = self._clean_drop_path(event.data)
+        self.verify_file_path = path
+        self.verify_file_label.configure(text=f"Файл для перевірки: {path}")
+        self._set_status("Файл для перевірки обрано (drag-and-drop)", "#60a5fa")
+        # Повертаємо колір рамки до стандартного після успішного drop
+        self.verify_file_drop_frame.configure(border_color="#374151")
+
+    def _on_drop_public_key(self, event) -> None:
+        """Обробник перетягування публічного ключа."""
+        path = self._clean_drop_path(event.data)
+        key_bytes = self._read_file_bytes(path)
+        if key_bytes is None:
+            self._set_status("❌ Помилка: Не вдалося прочитати публічний ключ", "#ef4444")
+            self.public_key_drop_frame.configure(border_color="#374151")
+            return
+
+        try:
+            serialization.load_pem_public_key(key_bytes)
+            self.public_key_data = key_bytes
+            self.public_key_path = path
+            self.public_key_label.configure(text=f"Публічний ключ: {path}")
+            self._set_status("✅ Публічний ключ завантажено (drag-and-drop)", "#22c55e")
+        except ValueError:
+            self._set_status("❌ Помилка: Невірний формат публічного ключа", "#ef4444")
+        # Повертаємо колір рамки до стандартного після обробки
+        self.public_key_drop_frame.configure(border_color="#374151")
+
+    def _on_drop_signature_file(self, event) -> None:
+        """Обробник перетягування файлу підпису."""
+        path = self._clean_drop_path(event.data)
+        self.signature_path = path
+        self.signature_label.configure(text=f"Файл підпису: {path}")
+        self._set_status("Файл підпису обрано (drag-and-drop)", "#60a5fa")
+        # Повертаємо колір рамки до стандартного після успішного drop
+        self.signature_drop_frame.configure(border_color="#374151")
+
+    def _on_drag_enter(self, event, frame: ctk.CTkFrame) -> None:
+        """Обробник входу файлу в зону перетягування."""
+        frame.configure(border_color="#3b82f6")
+
+    def _on_drag_leave(self, event, frame: ctk.CTkFrame) -> None:
+        """Обробник виходу файлу з зони перетягування."""
+        frame.configure(border_color="#374151")
 
     
     def select_sign_file(self) -> None:
@@ -319,33 +513,61 @@ class SignatureSignVerifyApp(ctk.CTk):
         if not self.private_key_data:
             self._set_status("⚠️ Спочатку оберіть приватний ключ!", "#f59e0b")
             return
-
-        file_data = self._read_file_bytes(self.sign_file_path)
-        if file_data is None:
-            self._set_status("❌ Помилка: Не вдалося прочитати файл для підпису", "#ef4444")
+        if self._operation_thread and self._operation_thread.is_alive():
             return
 
+        # Блокуємо кнопки та показуємо статус
+        self.sign_button.configure(state="disabled")
+        self._set_status("⏳ Підписування файлу, зачекайте...", "#f59e0b")
+        
+        # Запускаємо підписування в окремому потоці
+        self._operation_thread = threading.Thread(
+            target=self._sign_file_thread,
+            daemon=True
+        )
+        self._operation_thread.start()
+
+    def _sign_file_thread(self) -> None:
+        """Підписування файлу в окремому потоці."""
         try:
+            # Обчислюємо хеш файлу шматками
+            file_hash = self._hash_file_chunks(self.sign_file_path)
+            digest = file_hash.finalize()
+            
             private_key = serialization.load_pem_private_key(self.private_key_data, password=None)
             signature = private_key.sign(
-                file_data,
+                digest,
                 padding.PSS(
                     mgf=padding.MGF1(hashes.SHA256()),
                     salt_length=padding.PSS.MAX_LENGTH,
                 ),
-                hashes.SHA256(),
+                utils.Prehashed(hashes.SHA256()),
             )
-        except ValueError:
-            self._set_status("❌ Помилка: Невірний приватний ключ", "#ef4444")
-            return
 
-        signature_path = f"{self.sign_file_path}.sig"
-        try:
+            # Зберігаємо підпис
+            signature_path = f"{self.sign_file_path}.sig"
             with open(signature_path, "wb") as signature_file:
                 signature_file.write(signature)
-            self._set_status("✅ Підпис створено та збережено (.sig)", "#22c55e")
-        except OSError:
-            self._set_status("❌ Помилка: Не вдалося зберегти файл підпису", "#ef4444")
+            
+            # Оновлюємо UI в головному потоці
+            self.after(0, lambda: self._on_sign_completed(signature_path))
+            
+        except OSError as e:
+            self.after(0, lambda: self._on_sign_error(f"Помилка читання файлу: {str(e)}"))
+        except ValueError as e:
+            self.after(0, lambda: self._on_sign_error(f"Помилка приватного ключа: {str(e)}"))
+        except Exception as e:
+            self.after(0, lambda: self._on_sign_error(f"Помилка підписування: {str(e)}"))
+
+    def _on_sign_completed(self, signature_path: str) -> None:
+        """Обробка успішного підписування."""
+        self._set_status("✅ Підпис створено та збережено (.sig)", "#22c55e")
+        self.sign_button.configure(state="normal")
+
+    def _on_sign_error(self, error_msg: str) -> None:
+        """Обробка помилки підписування."""
+        self._set_status(f"❌ {error_msg}", "#ef4444")
+        self.sign_button.configure(state="normal")
 
     def select_verify_file(self) -> None:
         path = filedialog.askopenfilename(
@@ -403,29 +625,69 @@ class SignatureSignVerifyApp(ctk.CTk):
         if not self.signature_path:
             self._set_status("⚠️ Спочатку оберіть файл підпису (.sig)!", "#f59e0b")
             return
-
-        file_data = self._read_file_bytes(self.verify_file_path)
-        signature_data = self._read_file_bytes(self.signature_path)
-        if file_data is None or signature_data is None:
-            self._set_status("❌ Помилка: Не вдалося прочитати файл або підпис", "#ef4444")
+        if self._operation_thread and self._operation_thread.is_alive():
             return
 
+        # Блокуємо кнопки та показуємо статус
+        self.verify_button.configure(state="disabled")
+        self._set_status("⏳ Перевірка підпису, зачекайте...", "#f59e0b")
+        
+        # Запускаємо перевірку в окремому потоці
+        self._operation_thread = threading.Thread(
+            target=self._verify_signature_thread,
+            daemon=True
+        )
+        self._operation_thread.start()
+
+    def _verify_signature_thread(self) -> None:
+        """Перевірка підпису в окремому потоці."""
         try:
+            # Обчислюємо хеш файлу шматками
+            file_hash = self._hash_file_chunks(self.verify_file_path)
+            digest = file_hash.finalize()
+            
+            # Читаємо підпис
+            try:
+                with open(self.signature_path, "rb") as signature_file:
+                    signature_data = signature_file.read()
+            except OSError as e:
+                raise OSError(f"Не вдалося прочитати файл підпису: {str(e)}")
+            
             public_key = serialization.load_pem_public_key(self.public_key_data)
             public_key.verify(
                 signature_data,
-                file_data,
+                digest,
                 padding.PSS(
                     mgf=padding.MGF1(hashes.SHA256()),
                     salt_length=padding.PSS.MAX_LENGTH,
                 ),
-                hashes.SHA256(),
+                utils.Prehashed(hashes.SHA256()),
             )
-            self._set_status("✅ Підпис дійсний", "#22c55e")
+            
+            # Оновлюємо UI в головному потоці
+            self.after(0, lambda: self._on_verify_completed(True))
+            
         except InvalidSignature:
+            self.after(0, lambda: self._on_verify_completed(False))
+        except OSError as e:
+            self.after(0, lambda: self._on_verify_error(f"Помилка читання файлу: {str(e)}"))
+        except ValueError as e:
+            self.after(0, lambda: self._on_verify_error(f"Помилка публічного ключа: {str(e)}"))
+        except Exception as e:
+            self.after(0, lambda: self._on_verify_error(f"Помилка перевірки: {str(e)}"))
+
+    def _on_verify_completed(self, is_valid: bool) -> None:
+        """Обробка результату перевірки."""
+        if is_valid:
+            self._set_status("✅ Підпис дійсний", "#22c55e")
+        else:
             self._set_status("❌ Підпис недійсний: файл або ключ не відповідає", "#ef4444")
-        except ValueError:
-            self._set_status("❌ Помилка: Невірний публічний ключ", "#ef4444")
+        self.verify_button.configure(state="normal")
+
+    def _on_verify_error(self, error_msg: str) -> None:
+        """Обробка помилки перевірки."""
+        self._set_status(f"❌ {error_msg}", "#ef4444")
+        self.verify_button.configure(state="normal")
 
 
 def main() -> None:

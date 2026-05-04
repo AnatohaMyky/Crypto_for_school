@@ -1,5 +1,7 @@
 import customtkinter as ctk
 from tkinter import filedialog
+import threading
+from typing import Callable
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -22,6 +24,8 @@ class SignatureKeyGeneratorApp(ctk.CTk):
 
         self._compact_layout = False
         self._size_mode = "medium"
+        self._key_size: int = 2048
+        self._generation_thread: threading.Thread | None = None
 
         self._build_ui()
         self.bind("<Configure>", self._on_window_resize)
@@ -47,6 +51,41 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         )
         title_label.grid(row=0, column=0, columnspan=3, sticky="ew", padx=14, pady=(12, 10))
 
+        # Рядок з вибором розміру ключа
+        self.key_size_label = ctk.CTkLabel(
+            main_frame,
+            text="Розмір ключа:",
+            font=self.body_font,
+            anchor="w",
+        )
+        self.key_size_label.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 10))
+
+        self.key_size_menu = ctk.CTkOptionMenu(
+            main_frame,
+            values=["2048", "3072", "4096"],
+            command=self._on_key_size_change,
+            font=self.body_font,
+        )
+        self.key_size_menu.set("2048")
+        self.key_size_menu.grid(row=1, column=1, sticky="ew", padx=14, pady=(0, 10))
+
+        # Поле для пароля
+        self.password_label = ctk.CTkLabel(
+            main_frame,
+            text="Пароль шифрування:",
+            font=self.body_font,
+            anchor="w",
+        )
+        self.password_label.grid(row=1, column=2, sticky="ew", padx=14, pady=(0, 10))
+
+        self.password_entry = ctk.CTkEntry(
+            main_frame,
+            placeholder_text="Залиште порожнім для без шифрування",
+            show="*",
+            font=self.body_font,
+        )
+        self.password_entry.grid(row=2, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 10))
+
         self.generate_button = ctk.CTkButton(
             main_frame,
             text="Створити пару ключів",
@@ -54,7 +93,7 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             font=self.body_font,
             height=40,
         )
-        self.generate_button.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 10))
+        self.generate_button.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 10))
 
         self.save_private_button = ctk.CTkButton(
             main_frame,
@@ -63,7 +102,7 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             font=self.body_font,
             height=40,
         )
-        self.save_private_button.grid(row=1, column=1, sticky="ew", padx=14, pady=(0, 10))
+        self.save_private_button.grid(row=3, column=1, sticky="ew", padx=14, pady=(0, 10))
 
         self.save_public_button = ctk.CTkButton(
             main_frame,
@@ -72,7 +111,7 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             font=self.body_font,
             height=40,
         )
-        self.save_public_button.grid(row=1, column=2, sticky="ew", padx=14, pady=(0, 10))
+        self.save_public_button.grid(row=3, column=2, sticky="ew", padx=14, pady=(0, 10))
 
         self.private_label = ctk.CTkLabel(
             main_frame,
@@ -81,7 +120,7 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             anchor="w",
             wraplength=780,
         )
-        self.private_label.grid(row=2, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 8))
+        self.private_label.grid(row=4, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 8))
 
         self.public_label = ctk.CTkLabel(
             main_frame,
@@ -90,7 +129,7 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             anchor="w",
             wraplength=780,
         )
-        self.public_label.grid(row=3, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 12))
+        self.public_label.grid(row=5, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 12))
 
         self.status_label = ctk.CTkLabel(
             self,
@@ -119,19 +158,30 @@ class SignatureKeyGeneratorApp(ctk.CTk):
 
         self._compact_layout = compact
         if compact:
-            self.generate_button.grid_configure(row=1, column=0, columnspan=3)
-            self.save_private_button.grid_configure(row=2, column=0, columnspan=3)
-            self.save_public_button.grid_configure(row=3, column=0, columnspan=3)
+            self.key_size_label.grid_configure(row=1, column=0, columnspan=3)
+            self.key_size_menu.grid_configure(row=2, column=0, columnspan=3)
+            self.password_label.grid_configure(row=3, column=0, columnspan=3)
+            self.password_entry.grid_configure(row=4, column=0, columnspan=3)
+            self.generate_button.grid_configure(row=5, column=0, columnspan=3)
+            self.save_private_button.grid_configure(row=6, column=0, columnspan=3)
+            self.save_public_button.grid_configure(row=7, column=0, columnspan=3)
+            self.private_label.grid_configure(row=8, column=0, columnspan=3)
+            self.public_label.grid_configure(row=9, column=0, columnspan=3)
+        else:
+            self.key_size_label.grid_configure(row=1, column=0, columnspan=1)
+            self.key_size_menu.grid_configure(row=1, column=1, columnspan=1)
+            self.password_label.grid_configure(row=1, column=2, columnspan=1)
+            self.password_entry.grid_configure(row=2, column=0, columnspan=3)
+            self.generate_button.grid_configure(row=3, column=0, columnspan=1)
+            self.save_private_button.grid_configure(row=3, column=1, columnspan=1)
+            self.save_public_button.grid_configure(row=3, column=2, columnspan=1)
             self.private_label.grid_configure(row=4, column=0, columnspan=3)
             self.public_label.grid_configure(row=5, column=0, columnspan=3)
-        else:
-            self.generate_button.grid_configure(row=1, column=0, columnspan=1)
-            self.save_private_button.grid_configure(row=1, column=1, columnspan=1)
-            self.save_public_button.grid_configure(row=1, column=2, columnspan=1)
-            self.private_label.grid_configure(row=2, column=0, columnspan=3)
-            self.public_label.grid_configure(row=3, column=0, columnspan=3)
 
         self._update_wrap_lengths(width)
+
+    def _on_key_size_change(self, choice: str) -> None:
+        self._key_size = int(choice)
 
     def _update_wrap_lengths(self, width: int) -> None:
         wrap = max(280, width - 140)
@@ -162,25 +212,72 @@ class SignatureKeyGeneratorApp(ctk.CTk):
 
         for button in (self.generate_button, self.save_private_button, self.save_public_button):
             button.configure(height=button_h)
+        
+        # Оновлюємо висоту entry та option menu
+        self.password_entry.configure(height=button_h if button_h > 34 else 32)
+        self.key_size_menu.configure(height=button_h if button_h > 34 else 32)
 
     def generate_key_pair(self) -> None:
         """Створюємо ключі RSA для підпису/перевірки."""
-        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        public_key = private_key.public_key()
-
-        self.private_key_pem = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
+        if self._generation_thread and self._generation_thread.is_alive():
+            return
+        
+        # Блокуємо кнопку та показуємо статус
+        self.generate_button.configure(state="disabled")
+        self._set_status("⏳ Генерація ключів, зачекайте...", "#f59e0b")
+        
+        # Запускаємо генерацію в окремому потоці
+        self._generation_thread = threading.Thread(
+            target=self._generate_keys_thread,
+            daemon=True
         )
-        self.public_key_pem = public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo,
-        )
+        self._generation_thread.start()
 
-        self.private_label.configure(text="Приватний ключ: створено (RSA 2048, PEM)")
-        self.public_label.configure(text="Публічний ключ: створено (RSA 2048, PEM)")
+    def _generate_keys_thread(self) -> None:
+        """Генерація ключів в окремому потоці."""
+        try:
+            private_key = rsa.generate_private_key(public_exponent=65537, key_size=self._key_size)
+            public_key = private_key.public_key()
+
+            # Отримуємо пароль
+            password = self.password_entry.get()
+            if password:
+                password_bytes = password.encode('utf-8')
+                encryption_algorithm = serialization.BestAvailableEncryption(password_bytes)
+                encryption_info = f"RSA {self._key_size}, PEM (зашифровано)"
+            else:
+                encryption_algorithm = serialization.NoEncryption()
+                encryption_info = f"RSA {self._key_size}, PEM"
+                if password:
+                    self.after(0, lambda: self._set_status("⚠️ Ключі збережено без шифрування (порожній пароль)", "#f59e0b"))
+
+            self.private_key_pem = private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=encryption_algorithm,
+            )
+            self.public_key_pem = public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+
+            # Оновлюємо UI в головному потоці
+            self.after(0, lambda: self._on_keys_generated(encryption_info))
+            
+        except Exception as e:
+            self.after(0, lambda: self._on_generation_error(str(e)))
+
+    def _on_keys_generated(self, encryption_info: str) -> None:
+        """Обробка успішної генерації ключів."""
+        self.private_label.configure(text=f"Приватний ключ: створено ({encryption_info})")
+        self.public_label.configure(text=f"Публічний ключ: створено ({encryption_info})")
         self._set_status("✅ Пару ключів успішно згенеровано", "#22c55e")
+        self.generate_button.configure(state="normal")
+
+    def _on_generation_error(self, error_msg: str) -> None:
+        """Обробка помилки генерації ключів."""
+        self._set_status(f"❌ Помилка генерації ключів: {error_msg}", "#ef4444")
+        self.generate_button.configure(state="normal")
 
     def save_private_key(self) -> None:
         if not self.private_key_pem:
