@@ -54,13 +54,17 @@ class SignatureSignVerifyApp(CTkWithDND):
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)
 
-        self.main_frame = ctk.CTkFrame(self, corner_radius=12)
-        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=16, pady=(16, 8))
-        self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_rowconfigure((0, 1), weight=1)
-
-        self.sign_frame = self._create_section_frame("1) Підписування файлу", 0)
-        self.verify_frame = self._create_section_frame("2) Перевірка підпису", 1)
+        # Створюємо tabview замість main_frame
+        self.tabview = ctk.CTkTabview(self, corner_radius=12)
+        self.tabview.grid(row=0, column=0, sticky="nsew", padx=16, pady=(16, 8))
+        
+        # Додаємо вкладки
+        self.sign_tab = self.tabview.add("Підписування файлу")
+        self.verify_tab = self.tabview.add("Перевірка підпису")
+        
+        # Налаштовуємо grid для обох вкладок
+        self.sign_tab.grid_columnconfigure((0, 1, 2), weight=1)
+        self.verify_tab.grid_columnconfigure((0, 1, 2), weight=1)
 
         self._build_sign_section()
         self._build_verify_section()
@@ -77,52 +81,53 @@ class SignatureSignVerifyApp(CTkWithDND):
         self.update_idletasks()
         self._apply_responsive_layout(self.winfo_width())
 
-    def _create_section_frame(self, title: str, row: int) -> ctk.CTkFrame:
-        frame = ctk.CTkFrame(self.main_frame, corner_radius=10)
-        frame.grid(row=row, column=0, sticky="nsew", padx=12, pady=8)
-        frame.grid_columnconfigure((0, 1, 2), weight=1)
-
-        title_label = ctk.CTkLabel(frame, text=title, anchor="w", font=self.title_font)
-        title_label.grid(row=0, column=0, columnspan=3, sticky="ew", padx=14, pady=(12, 10))
-        return frame
-
+    
     def _build_sign_section(self) -> None:
+        # Заголовок секції
+        title_label = ctk.CTkLabel(
+            self.sign_tab,
+            text="1) Підписування файлу",
+            anchor="w",
+            font=self.title_font,
+        )
+        title_label.grid(row=0, column=0, columnspan=3, sticky="ew", padx=14, pady=(12, 20))
+
         self.select_sign_file_button = ctk.CTkButton(
-            self.sign_frame,
+            self.sign_tab,
             text="Обрати файл для підпису",
             command=self.select_sign_file,
             font=self.body_font,
             height=38,
         )
-        self.select_sign_file_button.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 10))
+        self.select_sign_file_button.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 20))
 
         self.select_private_key_button = ctk.CTkButton(
-            self.sign_frame,
+            self.sign_tab,
             text="Обрати приватний ключ",
             command=self.select_private_key,
             font=self.body_font,
             height=38,
         )
-        self.select_private_key_button.grid(row=1, column=1, sticky="ew", padx=14, pady=(0, 10))
+        self.select_private_key_button.grid(row=1, column=1, sticky="ew", padx=14, pady=(0, 20))
 
         self.sign_button = ctk.CTkButton(
-            self.sign_frame,
+            self.sign_tab,
             text="Підписати файл",
             command=self.sign_file,
             font=self.body_font,
             height=38,
         )
-        self.sign_button.grid(row=1, column=2, sticky="ew", padx=14, pady=(0, 10))
+        self.sign_button.grid(row=1, column=2, sticky="ew", padx=14, pady=(0, 20))
 
         # Drop Zone для файлу для підпису
         self.sign_file_drop_frame = ctk.CTkFrame(
-            self.sign_frame,
+            self.sign_tab,
             border_width=2,
             border_color="#374151",
             fg_color="#1f2937",
             corner_radius=8,
         )
-        self.sign_file_drop_frame.grid(row=2, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 8))
+        self.sign_file_drop_frame.grid(row=2, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 20))
         self.sign_file_drop_frame.drop_target_register(DND_FILES)
         self.sign_file_drop_frame.dnd_bind('<<Drop>>', self._on_drop_sign_file)
         self.sign_file_drop_frame.dnd_bind('<<DragEnter>>', lambda e: self._on_drag_enter(e, self.sign_file_drop_frame))
@@ -135,19 +140,19 @@ class SignatureSignVerifyApp(CTkWithDND):
             font=self.body_font,
             wraplength=900,
         )
-        self.sign_file_label.pack(padx=16, pady=12, fill="x")
+        self.sign_file_label.pack(padx=20, pady=16, fill="x")
         self.sign_file_label.drop_target_register(DND_FILES)
         self.sign_file_label.dnd_bind('<<Drop>>', self._on_drop_sign_file)
 
         # Drop Zone для приватного ключа
         self.private_key_drop_frame = ctk.CTkFrame(
-            self.sign_frame,
+            self.sign_tab,
             border_width=2,
             border_color="#374151",
             fg_color="#1f2937",
             corner_radius=8,
         )
-        self.private_key_drop_frame.grid(row=3, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 12))
+        self.private_key_drop_frame.grid(row=3, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 20))
         self.private_key_drop_frame.drop_target_register(DND_FILES)
         self.private_key_drop_frame.dnd_bind('<<Drop>>', self._on_drop_private_key)
         self.private_key_drop_frame.dnd_bind('<<DragEnter>>', lambda e: self._on_drag_enter(e, self.private_key_drop_frame))
@@ -160,56 +165,65 @@ class SignatureSignVerifyApp(CTkWithDND):
             font=self.body_font,
             wraplength=900,
         )
-        self.private_key_label.pack(padx=16, pady=12, fill="x")
+        self.private_key_label.pack(padx=20, pady=16, fill="x")
         self.private_key_label.drop_target_register(DND_FILES)
         self.private_key_label.dnd_bind('<<Drop>>', self._on_drop_private_key)
 
     def _build_verify_section(self) -> None:
+        # Заголовок секції
+        title_label = ctk.CTkLabel(
+            self.verify_tab,
+            text="2) Перевірка підпису",
+            anchor="w",
+            font=self.title_font,
+        )
+        title_label.grid(row=0, column=0, columnspan=3, sticky="ew", padx=14, pady=(12, 20))
+
         self.select_verify_file_button = ctk.CTkButton(
-            self.verify_frame,
+            self.verify_tab,
             text="Обрати файл для перевірки",
             command=self.select_verify_file,
             font=self.body_font,
             height=38,
         )
-        self.select_verify_file_button.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 10))
+        self.select_verify_file_button.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 20))
 
         self.select_public_key_button = ctk.CTkButton(
-            self.verify_frame,
+            self.verify_tab,
             text="Обрати публічний ключ",
             command=self.select_public_key,
             font=self.body_font,
             height=38,
         )
-        self.select_public_key_button.grid(row=1, column=1, sticky="ew", padx=14, pady=(0, 10))
+        self.select_public_key_button.grid(row=1, column=1, sticky="ew", padx=14, pady=(0, 20))
 
         self.select_signature_button = ctk.CTkButton(
-            self.verify_frame,
+            self.verify_tab,
             text="Обрати файл підпису (.sig)",
             command=self.select_signature_file,
             font=self.body_font,
             height=38,
         )
-        self.select_signature_button.grid(row=1, column=2, sticky="ew", padx=14, pady=(0, 10))
+        self.select_signature_button.grid(row=1, column=2, sticky="ew", padx=14, pady=(0, 20))
 
         self.verify_button = ctk.CTkButton(
-            self.verify_frame,
+            self.verify_tab,
             text="Перевірити підпис",
             command=self.verify_signature,
             font=self.body_font,
             height=38,
         )
-        self.verify_button.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 10))
+        self.verify_button.grid(row=2, column=1, sticky="ew", padx=14, pady=(0, 20))
 
         # Drop Zone для файлу для перевірки
         self.verify_file_drop_frame = ctk.CTkFrame(
-            self.verify_frame,
+            self.verify_tab,
             border_width=2,
             border_color="#374151",
             fg_color="#1f2937",
             corner_radius=8,
         )
-        self.verify_file_drop_frame.grid(row=3, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 8))
+        self.verify_file_drop_frame.grid(row=3, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 20))
         self.verify_file_drop_frame.drop_target_register(DND_FILES)
         self.verify_file_drop_frame.dnd_bind('<<Drop>>', self._on_drop_verify_file)
         self.verify_file_drop_frame.dnd_bind('<<DragEnter>>', lambda e: self._on_drag_enter(e, self.verify_file_drop_frame))
@@ -222,19 +236,19 @@ class SignatureSignVerifyApp(CTkWithDND):
             font=self.body_font,
             wraplength=900,
         )
-        self.verify_file_label.pack(padx=16, pady=12, fill="x")
+        self.verify_file_label.pack(padx=20, pady=16, fill="x")
         self.verify_file_label.drop_target_register(DND_FILES)
         self.verify_file_label.dnd_bind('<<Drop>>', self._on_drop_verify_file)
 
         # Drop Zone для публічного ключа
         self.public_key_drop_frame = ctk.CTkFrame(
-            self.verify_frame,
+            self.verify_tab,
             border_width=2,
             border_color="#374151",
             fg_color="#1f2937",
             corner_radius=8,
         )
-        self.public_key_drop_frame.grid(row=4, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 8))
+        self.public_key_drop_frame.grid(row=4, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 20))
         self.public_key_drop_frame.drop_target_register(DND_FILES)
         self.public_key_drop_frame.dnd_bind('<<Drop>>', self._on_drop_public_key)
         self.public_key_drop_frame.dnd_bind('<<DragEnter>>', lambda e: self._on_drag_enter(e, self.public_key_drop_frame))
@@ -247,19 +261,19 @@ class SignatureSignVerifyApp(CTkWithDND):
             font=self.body_font,
             wraplength=900,
         )
-        self.public_key_label.pack(padx=16, pady=12, fill="x")
+        self.public_key_label.pack(padx=20, pady=16, fill="x")
         self.public_key_label.drop_target_register(DND_FILES)
         self.public_key_label.dnd_bind('<<Drop>>', self._on_drop_public_key)
 
         # Drop Zone для файлу підпису
         self.signature_drop_frame = ctk.CTkFrame(
-            self.verify_frame,
+            self.verify_tab,
             border_width=2,
             border_color="#374151",
             fg_color="#1f2937",
             corner_radius=8,
         )
-        self.signature_drop_frame.grid(row=5, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 12))
+        self.signature_drop_frame.grid(row=5, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 20))
         self.signature_drop_frame.drop_target_register(DND_FILES)
         self.signature_drop_frame.dnd_bind('<<Drop>>', self._on_drop_signature_file)
         self.signature_drop_frame.dnd_bind('<<DragEnter>>', lambda e: self._on_drag_enter(e, self.signature_drop_frame))
@@ -272,7 +286,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             font=self.body_font,
             wraplength=900,
         )
-        self.signature_label.pack(padx=16, pady=12, fill="x")
+        self.signature_label.pack(padx=20, pady=16, fill="x")
         self.signature_label.drop_target_register(DND_FILES)
         self.signature_label.dnd_bind('<<Drop>>', self._on_drop_signature_file)
 
@@ -291,12 +305,14 @@ class SignatureSignVerifyApp(CTkWithDND):
 
         self._compact_layout = compact
         if compact:
+            # Підписування файлу - compact режим
             self.select_sign_file_button.grid_configure(row=1, column=0, columnspan=3)
             self.select_private_key_button.grid_configure(row=2, column=0, columnspan=3)
             self.sign_button.grid_configure(row=3, column=0, columnspan=3)
             self.sign_file_drop_frame.grid_configure(row=4, column=0, columnspan=3)
             self.private_key_drop_frame.grid_configure(row=5, column=0, columnspan=3)
 
+            # Перевірка підпису - compact режим
             self.select_verify_file_button.grid_configure(row=1, column=0, columnspan=3)
             self.select_public_key_button.grid_configure(row=2, column=0, columnspan=3)
             self.select_signature_button.grid_configure(row=3, column=0, columnspan=3)
@@ -305,12 +321,14 @@ class SignatureSignVerifyApp(CTkWithDND):
             self.public_key_drop_frame.grid_configure(row=6, column=0, columnspan=3)
             self.signature_drop_frame.grid_configure(row=7, column=0, columnspan=3)
         else:
+            # Підписування файлу - звичайний режим
             self.select_sign_file_button.grid_configure(row=1, column=0, columnspan=1)
             self.select_private_key_button.grid_configure(row=1, column=1, columnspan=1)
             self.sign_button.grid_configure(row=1, column=2, columnspan=1)
             self.sign_file_drop_frame.grid_configure(row=2, column=0, columnspan=3)
             self.private_key_drop_frame.grid_configure(row=3, column=0, columnspan=3)
 
+            # Перевірка підпису - звичайний режим
             self.select_verify_file_button.grid_configure(row=1, column=0, columnspan=1)
             self.select_public_key_button.grid_configure(row=1, column=1, columnspan=1)
             self.select_signature_button.grid_configure(row=1, column=2, columnspan=1)
