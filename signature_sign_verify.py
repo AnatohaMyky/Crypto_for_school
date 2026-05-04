@@ -1,8 +1,10 @@
 import customtkinter as ctk
 from tkinter import filedialog
 import threading
+import os
 from typing import Callable
 from tkinterdnd2 import TkinterDnD, DND_FILES
+from PIL import Image
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
@@ -49,6 +51,9 @@ class SignatureSignVerifyApp(CTkWithDND):
         self.title_font = ctk.CTkFont(size=18, weight="bold")
         self.body_font = ctk.CTkFont(size=14)
         self.status_font = ctk.CTkFont(size=15, weight="bold")
+        
+        # Завантажуємо іконки
+        self._load_icons()
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -80,6 +85,45 @@ class SignatureSignVerifyApp(CTkWithDND):
 
         self.update_idletasks()
         self._apply_responsive_layout(self.winfo_width())
+
+    def _load_icons(self) -> None:
+        """Завантажує іконки для drag-and-drop зон."""
+        try:
+            # Визначаємо шлях до папки з іконками
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            icons_dir = os.path.join(current_dir, "venv", "assets", "icons")
+            
+            # Шлях до іконки стрілки
+            icon_path = os.path.join(icons_dir, "arrow-down-from-line.png")
+            
+            # Завантажуємо іконки, якщо файл існує
+            if os.path.exists(icon_path):
+                # Велика іконка для порожньої зони
+                self.icon_upload_large = ctk.CTkImage(
+                    Image.open(icon_path),
+                    size=(40, 40)
+                )
+                # Малі іконки для заповненої зони
+                self.icon_file_small = ctk.CTkImage(
+                    Image.open(icon_path),
+                    size=(20, 20)
+                )
+                self.icon_key_small = ctk.CTkImage(
+                    Image.open(icon_path),
+                    size=(20, 20)
+                )
+            else:
+                # Якщо іконка не знайдена, використовуємо None
+                self.icon_upload_large = None
+                self.icon_file_small = None
+                self.icon_key_small = None
+                print(f"Попередження: іконку не знайдено за шляхом: {icon_path}")
+        except Exception as e:
+            # Якщо виникла помилка при завантаженні іконки
+            self.icon_upload_large = None
+            self.icon_file_small = None
+            self.icon_key_small = None
+            print(f"Помилка завантаження іконки: {e}")
 
     
     def _build_sign_section(self) -> None:
@@ -135,10 +179,14 @@ class SignatureSignVerifyApp(CTkWithDND):
 
         self.sign_file_label = ctk.CTkLabel(
             self.sign_file_drop_frame,
-            text="Файл для підпису: не обрано (можна перетягнути сюди)",
-            anchor="w",
+            text="Перетягніть файл сюди\nабо скористайтеся кнопкою вище",
+            anchor="center",
             font=self.body_font,
             wraplength=900,
+            image=self.icon_upload_large if self.icon_upload_large else None,
+            compound="top" if self.icon_upload_large else None,
+            justify="center",
+            text_color="#9ca3af",
         )
         self.sign_file_label.pack(padx=20, pady=16, fill="x")
         self.sign_file_label.drop_target_register(DND_FILES)
@@ -160,10 +208,14 @@ class SignatureSignVerifyApp(CTkWithDND):
 
         self.private_key_label = ctk.CTkLabel(
             self.private_key_drop_frame,
-            text="Приватний ключ: не обрано (можна перетягнути сюди)",
-            anchor="w",
+            text="Перетягніть приватний ключ сюди\nабо скористайтеся кнопкою вище",
+            anchor="center",
             font=self.body_font,
             wraplength=900,
+            image=self.icon_upload_large if self.icon_upload_large else None,
+            compound="top" if self.icon_upload_large else None,
+            justify="center",
+            text_color="#9ca3af",
         )
         self.private_key_label.pack(padx=20, pady=16, fill="x")
         self.private_key_label.drop_target_register(DND_FILES)
@@ -231,10 +283,14 @@ class SignatureSignVerifyApp(CTkWithDND):
 
         self.verify_file_label = ctk.CTkLabel(
             self.verify_file_drop_frame,
-            text="Файл для перевірки: не обрано (можна перетягнути сюди)",
-            anchor="w",
+            text="Перетягніть файл сюди\nабо скористайтеся кнопкою вище",
+            anchor="center",
             font=self.body_font,
             wraplength=900,
+            image=self.icon_upload_large if self.icon_upload_large else None,
+            compound="top" if self.icon_upload_large else None,
+            justify="center",
+            text_color="#9ca3af",
         )
         self.verify_file_label.pack(padx=20, pady=16, fill="x")
         self.verify_file_label.drop_target_register(DND_FILES)
@@ -256,10 +312,14 @@ class SignatureSignVerifyApp(CTkWithDND):
 
         self.public_key_label = ctk.CTkLabel(
             self.public_key_drop_frame,
-            text="Публічний ключ: не обрано (можна перетягнути сюди)",
-            anchor="w",
+            text="Перетягніть публічний ключ сюди\nабо скористайтеся кнопкою вище",
+            anchor="center",
             font=self.body_font,
             wraplength=900,
+            image=self.icon_upload_large if self.icon_upload_large else None,
+            compound="top" if self.icon_upload_large else None,
+            justify="center",
+            text_color="#9ca3af",
         )
         self.public_key_label.pack(padx=20, pady=16, fill="x")
         self.public_key_label.drop_target_register(DND_FILES)
@@ -281,10 +341,14 @@ class SignatureSignVerifyApp(CTkWithDND):
 
         self.signature_label = ctk.CTkLabel(
             self.signature_drop_frame,
-            text="Файл підпису: не обрано (можна перетягнути сюди)",
-            anchor="w",
+            text="Перетягніть файл підпису сюди\nабо скористайтеся кнопкою вище",
+            anchor="center",
             font=self.body_font,
             wraplength=900,
+            image=self.icon_upload_large if self.icon_upload_large else None,
+            compound="top" if self.icon_upload_large else None,
+            justify="center",
+            text_color="#9ca3af",
         )
         self.signature_label.pack(padx=20, pady=16, fill="x")
         self.signature_label.drop_target_register(DND_FILES)
@@ -418,7 +482,13 @@ class SignatureSignVerifyApp(CTkWithDND):
         """Обробник перетягування файлу для підпису."""
         path = self._clean_drop_path(event.data)
         self.sign_file_path = path
-        self.sign_file_label.configure(text=f"Файл для підпису: {path}")
+        # Оновлюємо мітку до стану "Заповнено"
+        self.sign_file_label.configure(
+            text=f"Обрано файл:\n{os.path.basename(path)}",
+            image="",
+            justify="center",
+            text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+        )
         self._set_status("Файл для підпису обрано (drag-and-drop)", "#60a5fa")
         # Повертаємо колір рамки до стандартного після успішного drop
         self.sign_file_drop_frame.configure(border_color="#374151")
@@ -436,7 +506,13 @@ class SignatureSignVerifyApp(CTkWithDND):
             serialization.load_pem_private_key(key_bytes, password=None)
             self.private_key_data = key_bytes
             self.private_key_path = path
-            self.private_key_label.configure(text=f"Приватний ключ: {path}")
+            # Оновлюємо мітку до стану "Заповнено"
+            self.private_key_label.configure(
+                text=f"Обрано ключ:\n{os.path.basename(path)}",
+                image="",
+                justify="center",
+                text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+            )
             self._set_status("✅ Приватний ключ завантажено (drag-and-drop)", "#22c55e")
         except ValueError:
             self._set_status("❌ Помилка: Невірний формат приватного ключа", "#ef4444")
@@ -447,7 +523,13 @@ class SignatureSignVerifyApp(CTkWithDND):
         """Обробник перетягування файлу для перевірки."""
         path = self._clean_drop_path(event.data)
         self.verify_file_path = path
-        self.verify_file_label.configure(text=f"Файл для перевірки: {path}")
+        # Оновлюємо мітку до стану "Заповнено"
+        self.verify_file_label.configure(
+            text=f"Обрано файл:\n{os.path.basename(path)}",
+            image="",
+            justify="center",
+            text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+        )
         self._set_status("Файл для перевірки обрано (drag-and-drop)", "#60a5fa")
         # Повертаємо колір рамки до стандартного після успішного drop
         self.verify_file_drop_frame.configure(border_color="#374151")
@@ -465,7 +547,13 @@ class SignatureSignVerifyApp(CTkWithDND):
             serialization.load_pem_public_key(key_bytes)
             self.public_key_data = key_bytes
             self.public_key_path = path
-            self.public_key_label.configure(text=f"Публічний ключ: {path}")
+            # Оновлюємо мітку до стану "Заповнено"
+            self.public_key_label.configure(
+                text=f"Обрано ключ:\n{os.path.basename(path)}",
+                image="",
+                justify="center",
+                text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+            )
             self._set_status("✅ Публічний ключ завантажено (drag-and-drop)", "#22c55e")
         except ValueError:
             self._set_status("❌ Помилка: Невірний формат публічного ключа", "#ef4444")
@@ -476,7 +564,13 @@ class SignatureSignVerifyApp(CTkWithDND):
         """Обробник перетягування файлу підпису."""
         path = self._clean_drop_path(event.data)
         self.signature_path = path
-        self.signature_label.configure(text=f"Файл підпису: {path}")
+        # Оновлюємо мітку до стану "Заповнено"
+        self.signature_label.configure(
+            text=f"Обрано файл:\n{os.path.basename(path)}",
+            image="",
+            justify="center",
+            text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+        )
         self._set_status("Файл підпису обрано (drag-and-drop)", "#60a5fa")
         # Повертаємо колір рамки до стандартного після успішного drop
         self.signature_drop_frame.configure(border_color="#374151")
@@ -499,7 +593,13 @@ class SignatureSignVerifyApp(CTkWithDND):
             return
 
         self.sign_file_path = path
-        self.sign_file_label.configure(text=f"Файл для підпису: {path}")
+        # Оновлюємо мітку до стану "Заповнено"
+        self.sign_file_label.configure(
+            text=f"Обрано файл:\n{os.path.basename(path)}",
+            image="",
+            justify="center",
+            text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+        )
         self._set_status("Файл для підпису обрано", "#60a5fa")
 
     def select_private_key(self) -> None:
@@ -519,7 +619,13 @@ class SignatureSignVerifyApp(CTkWithDND):
             serialization.load_pem_private_key(key_bytes, password=None)
             self.private_key_data = key_bytes
             self.private_key_path = path
-            self.private_key_label.configure(text=f"Приватний ключ: {path}")
+            # Оновлюємо мітку до стану "Заповнено"
+            self.private_key_label.configure(
+                text=f"Обрано ключ:\n{os.path.basename(path)}",
+                image="",
+                justify="center",
+                text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+            )
             self._set_status("✅ Приватний ключ завантажено", "#22c55e")
         except ValueError:
             self._set_status("❌ Помилка: Невірний формат приватного ключа", "#ef4444")
@@ -596,7 +702,13 @@ class SignatureSignVerifyApp(CTkWithDND):
             return
 
         self.verify_file_path = path
-        self.verify_file_label.configure(text=f"Файл для перевірки: {path}")
+        # Оновлюємо мітку до стану "Заповнено"
+        self.verify_file_label.configure(
+            text=f"Обрано файл:\n{os.path.basename(path)}",
+            image="",
+            justify="center",
+            text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+        )
         self._set_status("Файл для перевірки обрано", "#60a5fa")
 
     def select_public_key(self) -> None:
@@ -616,7 +728,13 @@ class SignatureSignVerifyApp(CTkWithDND):
             serialization.load_pem_public_key(key_bytes)
             self.public_key_data = key_bytes
             self.public_key_path = path
-            self.public_key_label.configure(text=f"Публічний ключ: {path}")
+            # Оновлюємо мітку до стану "Заповнено"
+            self.public_key_label.configure(
+                text=f"Обрано ключ:\n{os.path.basename(path)}",
+                image="",
+                justify="center",
+                text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+            )
             self._set_status("✅ Публічний ключ завантажено", "#22c55e")
         except ValueError:
             self._set_status("❌ Помилка: Невірний формат публічного ключа", "#ef4444")
@@ -630,7 +748,13 @@ class SignatureSignVerifyApp(CTkWithDND):
             return
 
         self.signature_path = path
-        self.signature_label.configure(text=f"Файл підпису: {path}")
+        # Оновлюємо мітку до стану "Заповнено"
+        self.signature_label.configure(
+            text=f"Обрано файл:\n{os.path.basename(path)}",
+            image="",
+            justify="center",
+            text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+        )
         self._set_status("Файл підпису обрано", "#60a5fa")
 
     def verify_signature(self) -> None:
