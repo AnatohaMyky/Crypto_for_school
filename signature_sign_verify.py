@@ -86,6 +86,39 @@ class SignatureSignVerifyApp(CTkWithDND):
         self.update_idletasks()
         self._apply_responsive_layout(self.winfo_width())
 
+        # Створюємо іконку інформації
+        self.info_label = ctk.CTkLabel(
+            self,
+            image=self.icon_info if self.icon_info else None,
+            text="",
+            cursor="hand2"
+        )
+        self.info_label.place(relx=0.98, rely=0.98, anchor="se")
+        
+        # Прив'язуємо hover events до іконки інформації
+        self.info_label.bind("<Enter>", self._show_popup)
+        self.info_label.bind("<Leave>", self._hide_popup)
+
+        # Створюємо прихований popup фрейм з інформацією про розробника
+        self.popup_frame = ctk.CTkFrame(
+            self,
+            fg_color="#374151",
+            border_width=1,
+            border_color="#4b5563",
+            corner_radius=8
+        )
+        
+        info_text = "Розробник: Анатолій Микитюк\nСтудент 4-го курсу ЧНУ ім. Ю. Федьковича\nВчитель інформатики, Хотинський академічний ліцей"
+        
+        info_popup_label = ctk.CTkLabel(
+            self.popup_frame,
+            text=info_text,
+            justify="left",
+            padx=15,
+            pady=10
+        )
+        info_popup_label.pack()
+
     def _load_icons(self) -> None:
         """Завантажує іконки для drag-and-drop зон."""
         try:
@@ -112,11 +145,22 @@ class SignatureSignVerifyApp(CTkWithDND):
                     Image.open(icon_path),
                     size=(20, 20)
                 )
+                # Іконка інформації
+                info_icon_path = os.path.join(icons_dir, "info.png")
+                if os.path.exists(info_icon_path):
+                    self.icon_info = ctk.CTkImage(
+                        Image.open(info_icon_path),
+                        size=(24, 24)
+                    )
+                else:
+                    self.icon_info = None
+                    print(f"Попередження: іконку info не знайдено за шляхом: {info_icon_path}")
             else:
                 # Якщо іконка не знайдена, використовуємо None
                 self.icon_upload_large = None
                 self.icon_file_small = None
                 self.icon_key_small = None
+                self.icon_info = None
                 print(f"Попередження: іконку не знайдено за шляхом: {icon_path}")
         except Exception as e:
             # Якщо виникла помилка при завантаженні іконки
@@ -582,6 +626,14 @@ class SignatureSignVerifyApp(CTkWithDND):
     def _on_drag_leave(self, event, frame: ctk.CTkFrame) -> None:
         """Обробник виходу файлу з зони перетягування."""
         frame.configure(border_color="#374151")
+
+    def _show_popup(self, event) -> None:
+        """Показує спливаюче вікно з інформацією про розробника."""
+        self.popup_frame.place(relx=0.95, rely=0.92, anchor="se")
+
+    def _hide_popup(self, event) -> None:
+        """Ховає спливаюче вікно з інформацією про розробника."""
+        self.popup_frame.place_forget()
 
     
     def select_sign_file(self) -> None:
