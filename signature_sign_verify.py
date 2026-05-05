@@ -178,6 +178,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             self.icon_upload_large = None
             self.icon_file_small = None
             self.icon_key_small = None
+            self.icon_info = None
             print(f"Помилка завантаження іконки: {e}")
 
     
@@ -529,7 +530,7 @@ class SignatureSignVerifyApp(CTkWithDND):
         # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
         self.sign_file_label.configure(
             text=f"Обрано файл:\n{os.path.basename(path)}",
-            image=None,
+            image="",
             compound="none",
             justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
@@ -556,8 +557,8 @@ class SignatureSignVerifyApp(CTkWithDND):
             self.private_key_label.configure(
                 text=f"Обрано ключ:\n{os.path.basename(path)}",
                 image="",
-                compound="none",
-                justify="center",
+                
+            justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
             self._set_status("✅ Приватний ключ завантажено (drag-and-drop)", "#22c55e")
@@ -576,7 +577,7 @@ class SignatureSignVerifyApp(CTkWithDND):
                             text=f"Обрано ключ:\n{os.path.basename(path)}",
                             image="",
                             compound="none",
-                            justify="center",
+            justify="center",
                             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
                         )
                         self._set_status("✅ Приватний ключ завантажено (з паролем)", "#22c55e")
@@ -598,7 +599,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
             compound="none",
-            justify="center",
+                        justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
         self._set_status("Файл для перевірки обрано (drag-and-drop)", "#60a5fa")
@@ -623,7 +624,7 @@ class SignatureSignVerifyApp(CTkWithDND):
                 text=f"Обрано ключ:\n{os.path.basename(path)}",
                 image="",
                 compound="none",
-                justify="center",
+            justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
             self._set_status("✅ Публічний ключ завантажено (drag-and-drop)", "#22c55e")
@@ -641,7 +642,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
             compound="none",
-            justify="center",
+                        justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
         self._set_status("Файл підпису обрано (drag-and-drop)", "#60a5fa")
@@ -672,6 +673,66 @@ class SignatureSignVerifyApp(CTkWithDND):
         )
         return dialog.get_input()
 
+    def _prompt_for_overwrite(self, file_path: str) -> bool:
+        """Запитує підтвердження на перезапис файлу через модальне вікно."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Підтвердження")
+        dialog.geometry("420x160")
+        dialog.resizable(False, False)
+        dialog.transient(self) # Keep on top of main window
+        
+        result = ctk.BooleanVar(value=False)
+        
+        def on_yes():
+            result.set(True)
+            dialog.grab_release()
+            dialog.destroy()
+            
+        def on_no():
+            result.set(False)
+            dialog.grab_release()
+            dialog.destroy()
+
+        dialog.protocol("WM_DELETE_WINDOW", on_no)
+
+        label = ctk.CTkLabel(
+            dialog, 
+            text=f"Файл '{os.path.basename(file_path)}' вже існує.\nБажаєте перезаписати його?",
+            font=ctk.CTkFont(size=14)
+        )
+        label.pack(pady=(25, 20), padx=20)
+
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=20)
+        
+        btn_no = ctk.CTkButton(btn_frame, text="Скасувати", width=120, command=on_no)
+        btn_no.pack(side="left", padx=10, expand=True)
+
+        btn_yes = ctk.CTkButton(
+            btn_frame, 
+            text="Перезаписати", 
+            width=120, 
+            fg_color="#ef4444", 
+            hover_color="#dc2626", 
+            command=on_yes
+        )
+        btn_yes.pack(side="right", padx=10, expand=True)
+
+        # CRITICAL: Wait for window to be drawn before grabbing focus to avoid TclError
+        dialog.wait_visibility()
+        dialog.grab_set()
+        
+        self.wait_window(dialog)
+        return result.get()
+
+    def _ensure_sign_button_enabled(self) -> None:
+        """Гарантує, що кнопка підписування увімкнена."""
+        self.after(0, lambda: self.sign_button.configure(state="normal"))
+
+    def _ensure_verify_button_enabled(self) -> None:
+        """Гарантує, що кнопка перевірки увімкнена."""
+        self.after(0, lambda: self.verify_button.configure(state="normal"))
+
     
     def select_sign_file(self) -> None:
         path = filedialog.askopenfilename(
@@ -687,7 +748,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
             compound="none",
-            justify="center",
+                        justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
         self._set_status("Файл для підпису обрано", "#60a5fa")
@@ -715,7 +776,7 @@ class SignatureSignVerifyApp(CTkWithDND):
                 text=f"Обрано ключ:\n{os.path.basename(path)}",
                 image="",
                 compound="none",
-                justify="center",
+            justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
             self._set_status("✅ Приватний ключ завантажено", "#22c55e")
@@ -734,7 +795,7 @@ class SignatureSignVerifyApp(CTkWithDND):
                             text=f"Обрано ключ:\n{os.path.basename(path)}",
                             image="",
                             compound="none",
-                            justify="center",
+            justify="center",
                             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
                         )
                         self._set_status("✅ Приватний ключ завантажено (з паролем)", "#22c55e")
@@ -769,9 +830,13 @@ class SignatureSignVerifyApp(CTkWithDND):
     def _sign_file_thread(self) -> None:
         """Підписування файлу в окремому потоці."""
         try:
-            # Обчислюємо хеш файлу шматками
-            file_hash = self._hash_file_chunks(self.sign_file_path)
-            digest = file_hash.finalize()
+            try:
+                # Обчислюємо хеш файлу шматками
+                file_hash = self._hash_file_chunks(self.sign_file_path)
+                digest = file_hash.finalize()
+            except OSError as e:
+                self.after(0, lambda: self._on_sign_error(f"Помилка читання файлу: {str(e)}"))
+                return
             
             # Спроба завантажити ключ без пароля
             try:
@@ -793,27 +858,69 @@ class SignatureSignVerifyApp(CTkWithDND):
                     self.after(0, lambda: self._on_sign_error(f"Помилка приватного ключа: {str(e)}"))
                     return
             
-            signature = private_key.sign(
-                digest,
-                padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA256()),
-                    salt_length=padding.PSS.MAX_LENGTH,
-                ),
-                utils.Prehashed(hashes.SHA256()),
-            )
+            try:
+                signature = private_key.sign(
+                    digest,
+                    padding.PSS(
+                        mgf=padding.MGF1(hashes.SHA256()),
+                        salt_length=padding.PSS.MAX_LENGTH,
+                    ),
+                    utils.Prehashed(hashes.SHA256()),
+                )
+            except ValueError as e:
+                self.after(0, lambda: self._on_sign_error(f"Помилка створення підпису: {str(e)}"))
+                return
+
+            # Перевіряємо, чи існує файл підпису
+            signature_path = f"{self.sign_file_path}.sig"
+            if os.path.exists(signature_path):
+                # Запитуємо підтвердження в головному потоці
+                self.after(0, lambda: self._check_overwrite_confirmation(signature_path, signature))
+                return
 
             # Зберігаємо підпис
-            signature_path = f"{self.sign_file_path}.sig"
-            with open(signature_path, "wb") as signature_file:
-                signature_file.write(signature)
+            try:
+                with open(signature_path, "wb") as signature_file:
+                    signature_file.write(signature)
+            except OSError as e:
+                self.after(0, lambda: self._on_sign_error(f"Помилка збереження підпису: {str(e)}"))
+                return
             
             # Оновлюємо UI в головному потоці
             self.after(0, lambda: self._on_sign_completed(signature_path))
             
-        except OSError as e:
-            self.after(0, lambda: self._on_sign_error(f"Помилка читання файлу: {str(e)}"))
         except Exception as e:
-            self.after(0, lambda: self._on_sign_error(f"Помилка підписування: {str(e)}"))
+            self.after(0, lambda: self._on_sign_error(f"Неочікувана помилка підписування: {type(e).__name__}: {str(e)}"))
+        finally:
+            self._ensure_sign_button_enabled()
+
+    def _check_overwrite_confirmation(self, signature_path: str, signature: bytes) -> None:
+        """Перевіряє підтвердження перезапису в головному потоці."""
+        if self._prompt_for_overwrite(signature_path):
+            # Користувач підтвердив перезапис
+            self._operation_thread = threading.Thread(
+                target=self._save_signature_after_confirmation,
+                args=(signature_path, signature),
+                daemon=True
+            )
+            self._operation_thread.start()
+        else:
+            # Користувач скасував
+            self._set_status("Скасовано користувачем", "#f59e0b")
+            self.sign_button.configure(state="normal")
+
+    def _save_signature_after_confirmation(self, signature_path: str, signature: bytes) -> None:
+        """Зберігає підпис після підтвердження перезапису."""
+        try:
+            with open(signature_path, "wb") as signature_file:
+                signature_file.write(signature)
+            self.after(0, lambda: self._on_sign_completed(signature_path))
+        except OSError as e:
+            self.after(0, lambda: self._on_sign_error(f"Помилка збереження підпису: {str(e)}"))
+        except Exception as e:
+            self.after(0, lambda: self._on_sign_error(f"Неочікувана помилка збереження: {type(e).__name__}: {str(e)}"))
+        finally:
+            self._ensure_sign_button_enabled()
 
     def _on_sign_completed(self, signature_path: str) -> None:
         """Обробка успішного підписування."""
@@ -839,7 +946,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
             compound="none",
-            justify="center",
+                        justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
         self._set_status("Файл для перевірки обрано", "#60a5fa")
@@ -865,8 +972,8 @@ class SignatureSignVerifyApp(CTkWithDND):
             self.public_key_label.configure(
                 text=f"Обрано ключ:\n{os.path.basename(path)}",
                 image="",
-                compound="none",
-                justify="center",
+            compound="none",
+            justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
             self._set_status("✅ Публічний ключ завантажено", "#22c55e")
@@ -887,7 +994,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
             compound="none",
-            justify="center",
+                        justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
         self._set_status("Файл підпису обрано", "#60a5fa")
@@ -919,39 +1026,52 @@ class SignatureSignVerifyApp(CTkWithDND):
     def _verify_signature_thread(self) -> None:
         """Перевірка підпису в окремому потоці."""
         try:
-            # Обчислюємо хеш файлу шматками
-            file_hash = self._hash_file_chunks(self.verify_file_path)
-            digest = file_hash.finalize()
+            try:
+                # Обчислюємо хеш файлу шматками
+                file_hash = self._hash_file_chunks(self.verify_file_path)
+                digest = file_hash.finalize()
+            except OSError as e:
+                self.after(0, lambda: self._on_verify_error(f"Помилка читання файлу: {str(e)}"))
+                return
             
             # Читаємо підпис
             try:
                 with open(self.signature_path, "rb") as signature_file:
                     signature_data = signature_file.read()
             except OSError as e:
-                raise OSError(f"Не вдалося прочитати файл підпису: {str(e)}")
+                self.after(0, lambda: self._on_verify_error(f"Не вдалося прочитати файл підпису: {str(e)}"))
+                return
             
-            public_key = serialization.load_pem_public_key(self.public_key_data)
-            public_key.verify(
-                signature_data,
-                digest,
-                padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA256()),
-                    salt_length=padding.PSS.MAX_LENGTH,
-                ),
-                utils.Prehashed(hashes.SHA256()),
-            )
+            try:
+                public_key = serialization.load_pem_public_key(self.public_key_data)
+            except ValueError as e:
+                self.after(0, lambda: self._on_verify_error(f"Помилка публічного ключа: {str(e)}"))
+                return
+            
+            try:
+                public_key.verify(
+                    signature_data,
+                    digest,
+                    padding.PSS(
+                        mgf=padding.MGF1(hashes.SHA256()),
+                        salt_length=padding.PSS.MAX_LENGTH,
+                    ),
+                    utils.Prehashed(hashes.SHA256()),
+                )
+            except InvalidSignature:
+                self.after(0, lambda: self._on_verify_completed(False))
+                return
+            except ValueError as e:
+                self.after(0, lambda: self._on_verify_error(f"Помилка перевірки підпису: {str(e)}"))
+                return
             
             # Оновлюємо UI в головному потоці
             self.after(0, lambda: self._on_verify_completed(True))
             
-        except InvalidSignature:
-            self.after(0, lambda: self._on_verify_completed(False))
-        except OSError as e:
-            self.after(0, lambda: self._on_verify_error(f"Помилка читання файлу: {str(e)}"))
-        except ValueError as e:
-            self.after(0, lambda: self._on_verify_error(f"Помилка публічного ключа: {str(e)}"))
         except Exception as e:
-            self.after(0, lambda: self._on_verify_error(f"Помилка перевірки: {str(e)}"))
+            self.after(0, lambda: self._on_verify_error(f"Неочікувана помилка перевірки: {type(e).__name__}: {str(e)}"))
+        finally:
+            self._ensure_verify_button_enabled()
 
     def _on_verify_completed(self, is_valid: bool) -> None:
         """Обробка результату перевірки."""
