@@ -15,7 +15,7 @@ class SignatureKeyGeneratorApp(ctk.CTk):
 
     def __init__(self) -> None:
         super().__init__()
-        ctk.set_appearance_mode("dark")
+        ctk.set_appearance_mode("System")
         ctk.set_default_color_theme("blue")
 
         self.title("Генератор ключів цифрового підпису")
@@ -152,10 +152,19 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             self,
             text="Статус: Очікування дії...",
             font=self.status_font,
-            text_color="#d1d5db",
+            text_color=("gray10", "#DCE4EE"),
             anchor="w",
         )
         self.status_label.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 14))
+
+        # Theme switch
+        self.theme_switch = ctk.CTkSwitch(
+            self,
+            text="Змінити тему",
+            command=self._toggle_theme,
+            font=self.body_font
+        )
+        self.theme_switch.place(relx=0.85, rely=0.98, anchor="se")
 
         self.update_idletasks()
         self._apply_responsive_layout(self.winfo_width())
@@ -176,9 +185,9 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         # Створюємо прихований popup фрейм з інформацією про розробника
         self.popup_frame = ctk.CTkFrame(
             self,
-            fg_color="#374151",
+            fg_color=("#f3f4f6", "#374151"),
             border_width=1,
-            border_color="#4b5563",
+            border_color=("#d1d5db", "#4b5563"),
             corner_radius=8
         )
         
@@ -193,28 +202,48 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         )
         info_popup_label.pack()
 
+        # Перевірка системної теми та ініціалізація інтерфейсу
+        if ctk.get_appearance_mode() == "Light":
+            self.theme_switch.select()
+            if self.icon_info_light:
+                self.info_label.configure(image=self.icon_info_light)
+        else:
+            if self.icon_info:
+                self.info_label.configure(image=self.icon_info)
+
     def _load_icons(self) -> None:
         """Завантажує іконки для інтерфейсу."""
         try:
             # Визначаємо шлях до папки з іконками
             icons_dir = self._get_resource_path(os.path.join("assets", "icons"))
             
-            # Шлях до іконки інформації
+            # Шлях до іконок інформації
             info_icon_path = os.path.join(icons_dir, "info.png")
+            light_info_icon_path = os.path.join(icons_dir, "light-info.png")
             
-            # Завантажуємо іконку, якщо файл існує 
+            # Завантажуємо іконки, якщо файли існують 
             if os.path.exists(info_icon_path):
                 self.icon_info = ctk.CTkImage(
                     Image.open(info_icon_path),
                     size=(24, 24)
                 )
             else:
-                # Якщо іконка не знайдена, використовуємо None
                 self.icon_info = None
                 print(f"Попередження: іконку info не знайдено за шляхом: {info_icon_path}")
+                
+            if os.path.exists(light_info_icon_path):
+                self.icon_info_light = ctk.CTkImage(
+                    Image.open(light_info_icon_path),
+                    size=(24, 24)
+                )
+            else:
+                self.icon_info_light = None
+                print(f"Попередження: іконку light-info не знайдено за шляхом: {light_info_icon_path}")
+                
         except Exception as e:
             # Якщо виникла помилка при завантаженні іконки
             self.icon_info = None
+            self.icon_info_light = None
             print(f"Помилка завантаження іконки: {e}")
 
     def _set_status(self, message: str, color: str) -> None:
@@ -227,6 +256,19 @@ class SignatureKeyGeneratorApp(ctk.CTk):
     def _hide_popup(self, event) -> None:
         """Ховає спливаюче вікно з інформацією про розробника."""
         self.popup_frame.place_forget()
+
+    def _toggle_theme(self) -> None:
+        """Перемикає між світлою та темною темою."""
+        if self.theme_switch.get():
+            ctk.set_appearance_mode("light")
+            # Змінюємо іконку на світлу тему
+            if self.icon_info_light:
+                self.info_label.configure(image=self.icon_info_light)
+        else:
+            ctk.set_appearance_mode("dark")
+            # Змінюємо іконку на темну тему
+            if self.icon_info:
+                self.info_label.configure(image=self.icon_info)
 
     def _on_window_resize(self, _event: object) -> None:
         self._apply_responsive_layout(self.winfo_width())

@@ -22,7 +22,7 @@ class SignatureSignVerifyApp(CTkWithDND):
 
     def __init__(self) -> None:
         super().__init__()
-        ctk.set_appearance_mode("dark")
+        ctk.set_appearance_mode("System")
         ctk.set_default_color_theme("blue")
 
         self.title("Підписування та перевірка підпису")
@@ -90,10 +90,19 @@ class SignatureSignVerifyApp(CTkWithDND):
             self,
             text="Статус: Очікування дії...",
             font=self.status_font,
-            text_color="#d1d5db",
+            text_color=("gray10", "#DCE4EE"),
             anchor="w",
         )
         self.status_label.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 14))
+
+        # Theme switch
+        self.theme_switch = ctk.CTkSwitch(
+            self,
+            text="Змінити тему",
+            command=self._toggle_theme,
+            font=self.body_font
+        )
+        self.theme_switch.place(relx=0.85, rely=0.98, anchor="se")
 
         self.update_idletasks()
         self._apply_responsive_layout(self.winfo_width())
@@ -114,9 +123,9 @@ class SignatureSignVerifyApp(CTkWithDND):
         # Створюємо прихований popup фрейм з інформацією про розробника
         self.popup_frame = ctk.CTkFrame(
             self,
-            fg_color="#374151",
+            fg_color=("#f3f4f6", "#374151"),
             border_width=1,
-            border_color="#4b5563",
+            border_color=("#d1d5db", "#4b5563"),
             corner_radius=8
         )
         
@@ -131,23 +140,34 @@ class SignatureSignVerifyApp(CTkWithDND):
         )
         info_popup_label.pack()
 
+        # Перевірка системної теми та ініціалізація інтерфейсу
+        if ctk.get_appearance_mode() == "Light":
+            self.theme_switch.select()
+            if self.icon_info_light:
+                self.info_label.configure(image=self.icon_info_light)
+            self._update_drop_zone_icons(True)
+        else:
+            if self.icon_info:
+                self.info_label.configure(image=self.icon_info)
+            self._update_drop_zone_icons(False)
+
     def _load_icons(self) -> None:
         """Завантажує іконки для drag-and-drop зон."""
         try:
             # Визначаємо шлях до папки з іконками
             icons_dir = self._get_resource_path(os.path.join("assets", "icons"))
             
-            # Шлях до іконки стрілки
-            icon_path = os.path.join(icons_dir, "arrow-down-from-line.png")
+            # Шлях до іконок стрілок
+            icon_path = os.path.join(icons_dir, "arrow-down-to-line.png")
+            light_icon_path = os.path.join(icons_dir, "light-arrow-down-to-line.png")
             
-            # Завантажуємо іконки, якщо файл існує
+            # Завантажуємо іконки, якщо файли існують
             if os.path.exists(icon_path):
-                # Велика іконка для порожньої зони
+                # Темні іконки
                 self.icon_upload_large = ctk.CTkImage(
                     Image.open(icon_path),
                     size=(40, 40)
                 )
-                # Малі іконки для заповненої зони
                 self.icon_file_small = ctk.CTkImage(
                     Image.open(icon_path),
                     size=(20, 20)
@@ -156,29 +176,62 @@ class SignatureSignVerifyApp(CTkWithDND):
                     Image.open(icon_path),
                     size=(20, 20)
                 )
-                # Іконка інформації
-                info_icon_path = os.path.join(icons_dir, "info.png")
-                if os.path.exists(info_icon_path):
-                    self.icon_info = ctk.CTkImage(
-                        Image.open(info_icon_path),
-                        size=(24, 24)
-                    )
-                else:
-                    self.icon_info = None
-                    print(f"Попередження: іконку info не знайдено за шляхом: {info_icon_path}")
             else:
-                # Якщо іконка не знайдена, використовуємо None
                 self.icon_upload_large = None
                 self.icon_file_small = None
                 self.icon_key_small = None
+                
+            if os.path.exists(light_icon_path):
+                # Світлі іконки
+                self.icon_upload_large_light = ctk.CTkImage(
+                    Image.open(light_icon_path),
+                    size=(40, 40)
+                )
+                self.icon_file_small_light = ctk.CTkImage(
+                    Image.open(light_icon_path),
+                    size=(20, 20)
+                )
+                self.icon_key_small_light = ctk.CTkImage(
+                    Image.open(light_icon_path),
+                    size=(20, 20)
+                )
+            else:
+                self.icon_upload_large_light = None
+                self.icon_file_small_light = None
+                self.icon_key_small_light = None
+                
+            # Іконка інформації
+            info_icon_path = os.path.join(icons_dir, "info.png")
+            light_info_icon_path = os.path.join(icons_dir, "light-info.png")
+            
+            if os.path.exists(info_icon_path):
+                self.icon_info = ctk.CTkImage(
+                    Image.open(info_icon_path),
+                    size=(24, 24)
+                )
+            else:
                 self.icon_info = None
-                print(f"Попередження: іконку не знайдено за шляхом: {icon_path}")
+                print(f"Попередження: іконку info не знайдено за шляхом: {info_icon_path}")
+                
+            if os.path.exists(light_info_icon_path):
+                self.icon_info_light = ctk.CTkImage(
+                    Image.open(light_info_icon_path),
+                    size=(24, 24)
+                )
+            else:
+                self.icon_info_light = None
+                print(f"Попередження: іконку light-info не знайдено за шляхом: {light_info_icon_path}")
+                
         except Exception as e:
             # Якщо виникла помилка при завантаженні іконки
             self.icon_upload_large = None
             self.icon_file_small = None
             self.icon_key_small = None
             self.icon_info = None
+            self.icon_upload_large_light = None
+            self.icon_file_small_light = None
+            self.icon_key_small_light = None
+            self.icon_info_light = None
             print(f"Помилка завантаження іконки: {e}")
 
     
@@ -223,8 +276,8 @@ class SignatureSignVerifyApp(CTkWithDND):
         self.sign_file_drop_frame = ctk.CTkFrame(
             self.sign_tab,
             border_width=2,
-            border_color="#374151",
-            fg_color="#1f2937",
+            border_color=("#374151", "#9ca3af"),
+            fg_color=("#dbeafe", "#1f2937"),
             corner_radius=8,
         )
         self.sign_file_drop_frame.grid(row=2, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 20))
@@ -242,7 +295,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             image=self.icon_upload_large if self.icon_upload_large else None,
             compound="top" if self.icon_upload_large else None,
             justify="center",
-            text_color="#9ca3af",
+            text_color=("#374151", "#9ca3af"),
         )
         self.sign_file_label.pack(padx=20, pady=16, fill="x")
         self.sign_file_label.drop_target_register(DND_FILES)
@@ -252,8 +305,8 @@ class SignatureSignVerifyApp(CTkWithDND):
         self.private_key_drop_frame = ctk.CTkFrame(
             self.sign_tab,
             border_width=2,
-            border_color="#374151",
-            fg_color="#1f2937",
+            border_color=("#374151", "#9ca3af"),
+            fg_color=("#dbeafe", "#1f2937"),
             corner_radius=8,
         )
         self.private_key_drop_frame.grid(row=3, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 20))
@@ -271,7 +324,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             image=self.icon_upload_large if self.icon_upload_large else None,
             compound="top" if self.icon_upload_large else None,
             justify="center",
-            text_color="#9ca3af",
+            text_color=("#374151", "#9ca3af"),
         )
         self.private_key_label.pack(padx=20, pady=16, fill="x")
         self.private_key_label.drop_target_register(DND_FILES)
@@ -327,8 +380,8 @@ class SignatureSignVerifyApp(CTkWithDND):
         self.verify_file_drop_frame = ctk.CTkFrame(
             self.verify_tab,
             border_width=2,
-            border_color="#374151",
-            fg_color="#1f2937",
+            border_color=("#374151", "#9ca3af"),
+            fg_color=("#dbeafe", "#1f2937"),
             corner_radius=8,
         )
         self.verify_file_drop_frame.grid(row=3, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 20))
@@ -346,7 +399,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             image=self.icon_upload_large if self.icon_upload_large else None,
             compound="top" if self.icon_upload_large else None,
             justify="center",
-            text_color="#9ca3af",
+            text_color=("#374151", "#9ca3af"),
         )
         self.verify_file_label.pack(padx=20, pady=16, fill="x")
         self.verify_file_label.drop_target_register(DND_FILES)
@@ -356,8 +409,8 @@ class SignatureSignVerifyApp(CTkWithDND):
         self.public_key_drop_frame = ctk.CTkFrame(
             self.verify_tab,
             border_width=2,
-            border_color="#374151",
-            fg_color="#1f2937",
+            border_color=("#374151", "#9ca3af"),
+            fg_color=("#dbeafe", "#1f2937"),
             corner_radius=8,
         )
         self.public_key_drop_frame.grid(row=4, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 20))
@@ -375,7 +428,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             image=self.icon_upload_large if self.icon_upload_large else None,
             compound="top" if self.icon_upload_large else None,
             justify="center",
-            text_color="#9ca3af",
+            text_color=("#374151", "#9ca3af"),
         )
         self.public_key_label.pack(padx=20, pady=16, fill="x")
         self.public_key_label.drop_target_register(DND_FILES)
@@ -385,8 +438,8 @@ class SignatureSignVerifyApp(CTkWithDND):
         self.signature_drop_frame = ctk.CTkFrame(
             self.verify_tab,
             border_width=2,
-            border_color="#374151",
-            fg_color="#1f2937",
+            border_color=("#374151", "#9ca3af"),
+            fg_color=("#dbeafe", "#1f2937"),
             corner_radius=8,
         )
         self.signature_drop_frame.grid(row=5, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 20))
@@ -404,7 +457,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             image=self.icon_upload_large if self.icon_upload_large else None,
             compound="top" if self.icon_upload_large else None,
             justify="center",
-            text_color="#9ca3af",
+            text_color=("#374151", "#9ca3af"),
         )
         self.signature_label.pack(padx=20, pady=16, fill="x")
         self.signature_label.drop_target_register(DND_FILES)
@@ -537,7 +590,7 @@ class SignatureSignVerifyApp(CTkWithDND):
         )
         self._set_status("Файл для підпису обрано (drag-and-drop)", "#60a5fa")
         # Повертаємо колір рамки до стандартного після успішного drop
-        self.sign_file_drop_frame.configure(border_color="#374151")
+        self.sign_file_drop_frame.configure(border_color=("#374151", "#9ca3af"))
 
     def _on_drop_private_key(self, event) -> None:
         """Обробник перетягування приватного ключа."""
@@ -545,7 +598,7 @@ class SignatureSignVerifyApp(CTkWithDND):
         key_bytes = self._read_file_bytes(path)
         if key_bytes is None:
             self._set_status("❌ Помилка: Не вдалося прочитати приватний ключ", "#ef4444")
-            self.private_key_drop_frame.configure(border_color="#374151")
+            self.private_key_drop_frame.configure(border_color=("#374151", "#9ca3af"))
             return
 
         # Спроба завантажити ключ без пароля
@@ -588,7 +641,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             else:
                 self._set_status("❌ Помилка: Невірний формат приватного ключа", "#ef4444")
         # Повертаємо колір рамки до стандартного після обробки
-        self.private_key_drop_frame.configure(border_color="#374151")
+        self.private_key_drop_frame.configure(border_color=("#374151", "#9ca3af"))
 
     def _on_drop_verify_file(self, event) -> None:
         """Обробник перетягування файлу для перевірки."""
@@ -604,7 +657,7 @@ class SignatureSignVerifyApp(CTkWithDND):
         )
         self._set_status("Файл для перевірки обрано (drag-and-drop)", "#60a5fa")
         # Повертаємо колір рамки до стандартного після успішного drop
-        self.verify_file_drop_frame.configure(border_color="#374151")
+        self.verify_file_drop_frame.configure(border_color=("#374151", "#9ca3af"))
 
     def _on_drop_public_key(self, event) -> None:
         """Обробник перетягування публічного ключа."""
@@ -612,7 +665,7 @@ class SignatureSignVerifyApp(CTkWithDND):
         key_bytes = self._read_file_bytes(path)
         if key_bytes is None:
             self._set_status("❌ Помилка: Не вдалося прочитати публічний ключ", "#ef4444")
-            self.public_key_drop_frame.configure(border_color="#374151")
+            self.public_key_drop_frame.configure(border_color=("#374151", "#9ca3af"))
             return
 
         try:
@@ -631,7 +684,7 @@ class SignatureSignVerifyApp(CTkWithDND):
         except ValueError:
             self._set_status("❌ Помилка: Невірний формат публічного ключа", "#ef4444")
         # Повертаємо колір рамки до стандартного після обробки
-        self.public_key_drop_frame.configure(border_color="#374151")
+        self.public_key_drop_frame.configure(border_color=("#374151", "#9ca3af"))
 
     def _on_drop_signature_file(self, event) -> None:
         """Обробник перетягування файлу підпису."""
@@ -647,7 +700,7 @@ class SignatureSignVerifyApp(CTkWithDND):
         )
         self._set_status("Файл підпису обрано (drag-and-drop)", "#60a5fa")
         # Повертаємо колір рамки до стандартного після успішного drop
-        self.signature_drop_frame.configure(border_color="#374151")
+        self.signature_drop_frame.configure(border_color=("#374151", "#9ca3af"))
 
     def _on_drag_enter(self, event, frame: ctk.CTkFrame) -> None:
         """Обробник входу файлу в зону перетягування."""
@@ -655,7 +708,7 @@ class SignatureSignVerifyApp(CTkWithDND):
 
     def _on_drag_leave(self, event, frame: ctk.CTkFrame) -> None:
         """Обробник виходу файлу з зони перетягування."""
-        frame.configure(border_color="#374151")
+        frame.configure(border_color=("#374151", "#9ca3af"))
 
     def _show_popup(self, event) -> None:
         """Показує спливаюче вікно з інформацією про розробника."""
@@ -664,6 +717,42 @@ class SignatureSignVerifyApp(CTkWithDND):
     def _hide_popup(self, event) -> None:
         """Ховає спливаюче вікно з інформацією про розробника."""
         self.popup_frame.place_forget()
+
+    def _toggle_theme(self) -> None:
+        """Перемикає між світлою та темною темою."""
+        if self.theme_switch.get():
+            ctk.set_appearance_mode("light")
+            # Змінюємо іконки на світлу тему
+            if self.icon_info_light:
+                self.info_label.configure(image=self.icon_info_light)
+            # Оновлюємо іконки в drop зонах
+            self._update_drop_zone_icons(True)
+        else:
+            ctk.set_appearance_mode("dark")
+            # Змінюємо іконки на темну тему
+            if self.icon_info:
+                self.info_label.configure(image=self.icon_info)
+            # Оновлюємо іконки в drop зонах
+            self._update_drop_zone_icons(False)
+    
+    def _update_drop_zone_icons(self, is_light: bool) -> None:
+        """Оновлює іконки в drop зонах залежно від теми."""
+        if is_light:
+            # Світлі іконки
+            if self.icon_upload_large_light:
+                self.sign_file_label.configure(image=self.icon_upload_large_light)
+                self.private_key_label.configure(image=self.icon_upload_large_light)
+                self.verify_file_label.configure(image=self.icon_upload_large_light)
+                self.public_key_label.configure(image=self.icon_upload_large_light)
+                self.signature_label.configure(image=self.icon_upload_large_light)
+        else:
+            # Темні іконки
+            if self.icon_upload_large:
+                self.sign_file_label.configure(image=self.icon_upload_large)
+                self.private_key_label.configure(image=self.icon_upload_large)
+                self.verify_file_label.configure(image=self.icon_upload_large)
+                self.public_key_label.configure(image=self.icon_upload_large)
+                self.signature_label.configure(image=self.icon_upload_large)
 
     def _prompt_for_password(self) -> str | None:
         """Запитує пароль у користувача через діалогове вікно."""
