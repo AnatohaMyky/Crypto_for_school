@@ -71,7 +71,15 @@ def build_with_pyinstaller_exe(script_path, app_name):
     print(f"✅ Знайдено PyInstaller: {pyinstaller_path}")
     
     # Створюємо EXE
-    cmd = [pyinstaller_path, "--onefile", "--windowed", "--name", app_name, script_path]
+    cmd = [
+    pyinstaller_path, 
+    "--onefile", 
+    "--windowed", 
+    "--collect-all", "tkinterdnd2",
+    "--add-data", "assets;assets", 
+    "--name", app_name, 
+    script_path
+]
     
     try:
         print(f"🔨 Створення {app_name}.exe...")
