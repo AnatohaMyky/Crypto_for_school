@@ -2,6 +2,7 @@ import customtkinter as ctk
 from tkinter import filedialog
 import threading
 import os
+import sys
 from typing import Callable
 from PIL import Image
 
@@ -31,6 +32,17 @@ class SignatureKeyGeneratorApp(ctk.CTk):
 
         self._build_ui()
         self.bind("<Configure>", self._on_window_resize)
+
+    def _get_resource_path(self, relative_path: str) -> str:
+        """Отримує абсолютний шлях до ресурсу для PyInstaller та звичайного запуску."""
+        try:
+            # PyInstaller розпаковує дані у тимчасову папку _MEIPASS
+            base_path = sys._MEIPASS
+        except AttributeError:
+            # Звичайний запуск з вихідного коду
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        
+        return os.path.join(base_path, relative_path)
 
     def _build_ui(self) -> None:
         self.title_font = ctk.CTkFont(size=18, weight="bold")
@@ -185,8 +197,7 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         """Завантажує іконки для інтерфейсу."""
         try:
             # Визначаємо шлях до папки з іконками
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            icons_dir = os.path.join(current_dir, "venv", "assets", "icons")
+            icons_dir = self._get_resource_path(os.path.join("assets", "icons"))
             
             # Шлях до іконки інформації
             info_icon_path = os.path.join(icons_dir, "info.png")
@@ -319,8 +330,7 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             else:
                 encryption_algorithm = serialization.NoEncryption()
                 encryption_info = f"RSA {self._key_size}, PEM"
-                if password:
-                    self.after(0, lambda: self._set_status("⚠️ Ключі збережено без шифрування (порожній пароль)", "#f59e0b"))
+                self.after(0, lambda: self._set_status("⚠️ Ключі збережено без шифрування (порожній пароль)", "#f59e0b"))
 
             self.private_key_pem = private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,

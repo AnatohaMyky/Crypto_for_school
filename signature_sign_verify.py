@@ -2,6 +2,7 @@ import customtkinter as ctk
 from tkinter import filedialog
 import threading
 import os
+import sys
 from typing import Callable
 from tkinterdnd2 import TkinterDnD, DND_FILES
 from PIL import Image
@@ -46,6 +47,17 @@ class SignatureSignVerifyApp(CTkWithDND):
 
         self._build_ui()
         self.bind("<Configure>", self._on_window_resize)
+
+    def _get_resource_path(self, relative_path: str) -> str:
+        """Отримує абсолютний шлях до ресурсу для PyInstaller та звичайного запуску."""
+        try:
+            # PyInstaller розпаковує дані у тимчасову папку _MEIPASS
+            base_path = sys._MEIPASS
+        except AttributeError:
+            # Звичайний запуск з вихідного коду
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        
+        return os.path.join(base_path, relative_path)
 
     def _build_ui(self) -> None:
         self.title_font = ctk.CTkFont(size=18, weight="bold")
@@ -123,8 +135,7 @@ class SignatureSignVerifyApp(CTkWithDND):
         """Завантажує іконки для drag-and-drop зон."""
         try:
             # Визначаємо шлях до папки з іконками
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            icons_dir = os.path.join(current_dir, "venv", "assets", "icons")
+            icons_dir = self._get_resource_path(os.path.join("assets", "icons"))
             
             # Шлях до іконки стрілки
             icon_path = os.path.join(icons_dir, "arrow-down-from-line.png")
@@ -511,25 +522,15 @@ class SignatureSignVerifyApp(CTkWithDND):
             raise
         return hasher
 
-    def _read_file_chunks(self, file_path: str) -> bytes:
-        """Читає файл шматками (тільки для підпису)."""
-        hasher = hashes.Hash(hashes.SHA256())
-        try:
-            with open(file_path, "rb") as file:
-                while chunk := file.read(self.CHUNK_SIZE):
-                    hasher.update(chunk)
-        except OSError:
-            raise
-        return hasher.finalize()
-
     def _on_drop_sign_file(self, event) -> None:
         """Обробник перетягування файлу для підпису."""
         path = self._clean_drop_path(event.data)
         self.sign_file_path = path
-        # Оновлюємо мітку до стану "Заповнено"
+        # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
         self.sign_file_label.configure(
             text=f"Обрано файл:\n{os.path.basename(path)}",
-            image="",
+            image=None,
+            compound="none",
             justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
@@ -546,20 +547,45 @@ class SignatureSignVerifyApp(CTkWithDND):
             self.private_key_drop_frame.configure(border_color="#374151")
             return
 
+        # Спроба завантажити ключ без пароля
         try:
             serialization.load_pem_private_key(key_bytes, password=None)
             self.private_key_data = key_bytes
             self.private_key_path = path
-            # Оновлюємо мітку до стану "Заповнено"
+            # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
             self.private_key_label.configure(
                 text=f"Обрано ключ:\n{os.path.basename(path)}",
                 image="",
+                compound="none",
                 justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
             self._set_status("✅ Приватний ключ завантажено (drag-and-drop)", "#22c55e")
-        except ValueError:
-            self._set_status("❌ Помилка: Невірний формат приватного ключа", "#ef4444")
+        except ValueError as e:
+            # Якщо ключ зашифровано, запитуємо пароль
+            if "password" in str(e).lower() or "decryption" in str(e).lower():
+                password = self._prompt_for_password()
+                if password is not None:
+                    try:
+                        password_bytes = password.encode('utf-8')
+                        serialization.load_pem_private_key(key_bytes, password=password_bytes)
+                        self.private_key_data = key_bytes
+                        self.private_key_path = path
+                        # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
+                        self.private_key_label.configure(
+                            text=f"Обрано ключ:\n{os.path.basename(path)}",
+                            image="",
+                            compound="none",
+                            justify="center",
+                            text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+                        )
+                        self._set_status("✅ Приватний ключ завантажено (з паролем)", "#22c55e")
+                    except ValueError:
+                        self._set_status("❌ Помилка: Невірний пароль або формат ключа", "#ef4444")
+                else:
+                    self._set_status("❌ Скасовано: потрібен пароль для ключа", "#f59e0b")
+            else:
+                self._set_status("❌ Помилка: Невірний формат приватного ключа", "#ef4444")
         # Повертаємо колір рамки до стандартного після обробки
         self.private_key_drop_frame.configure(border_color="#374151")
 
@@ -567,10 +593,11 @@ class SignatureSignVerifyApp(CTkWithDND):
         """Обробник перетягування файлу для перевірки."""
         path = self._clean_drop_path(event.data)
         self.verify_file_path = path
-        # Оновлюємо мітку до стану "Заповнено"
+        # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
         self.verify_file_label.configure(
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
+            compound="none",
             justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
@@ -591,10 +618,11 @@ class SignatureSignVerifyApp(CTkWithDND):
             serialization.load_pem_public_key(key_bytes)
             self.public_key_data = key_bytes
             self.public_key_path = path
-            # Оновлюємо мітку до стану "Заповнено"
+            # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
             self.public_key_label.configure(
                 text=f"Обрано ключ:\n{os.path.basename(path)}",
                 image="",
+                compound="none",
                 justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
@@ -608,10 +636,11 @@ class SignatureSignVerifyApp(CTkWithDND):
         """Обробник перетягування файлу підпису."""
         path = self._clean_drop_path(event.data)
         self.signature_path = path
-        # Оновлюємо мітку до стану "Заповнено"
+        # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
         self.signature_label.configure(
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
+            compound="none",
             justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
@@ -635,6 +664,14 @@ class SignatureSignVerifyApp(CTkWithDND):
         """Ховає спливаюче вікно з інформацією про розробника."""
         self.popup_frame.place_forget()
 
+    def _prompt_for_password(self) -> str | None:
+        """Запитує пароль у користувача через діалогове вікно."""
+        dialog = ctk.CTkInputDialog(
+            text="Введіть пароль для зашифрованого приватного ключа:",
+            title="Пароль ключа"
+        )
+        return dialog.get_input()
+
     
     def select_sign_file(self) -> None:
         path = filedialog.askopenfilename(
@@ -645,10 +682,11 @@ class SignatureSignVerifyApp(CTkWithDND):
             return
 
         self.sign_file_path = path
-        # Оновлюємо мітку до стану "Заповнено"
+        # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
         self.sign_file_label.configure(
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
+            compound="none",
             justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
@@ -667,20 +705,45 @@ class SignatureSignVerifyApp(CTkWithDND):
             self._set_status("❌ Помилка: Не вдалося прочитати приватний ключ", "#ef4444")
             return
 
+        # Спроба завантажити ключ без пароля
         try:
             serialization.load_pem_private_key(key_bytes, password=None)
             self.private_key_data = key_bytes
             self.private_key_path = path
-            # Оновлюємо мітку до стану "Заповнено"
+            # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
             self.private_key_label.configure(
                 text=f"Обрано ключ:\n{os.path.basename(path)}",
                 image="",
+                compound="none",
                 justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
             self._set_status("✅ Приватний ключ завантажено", "#22c55e")
-        except ValueError:
-            self._set_status("❌ Помилка: Невірний формат приватного ключа", "#ef4444")
+        except ValueError as e:
+            # Якщо ключ зашифровано, запитуємо пароль
+            if "password" in str(e).lower() or "decryption" in str(e).lower():
+                password = self._prompt_for_password()
+                if password is not None:
+                    try:
+                        password_bytes = password.encode('utf-8')
+                        serialization.load_pem_private_key(key_bytes, password=password_bytes)
+                        self.private_key_data = key_bytes
+                        self.private_key_path = path
+                        # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
+                        self.private_key_label.configure(
+                            text=f"Обрано ключ:\n{os.path.basename(path)}",
+                            image="",
+                            compound="none",
+                            justify="center",
+                            text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+                        )
+                        self._set_status("✅ Приватний ключ завантажено (з паролем)", "#22c55e")
+                    except ValueError:
+                        self._set_status("❌ Помилка: Невірний пароль або формат ключа", "#ef4444")
+                else:
+                    self._set_status("❌ Скасовано: потрібен пароль для ключа", "#f59e0b")
+            else:
+                self._set_status("❌ Помилка: Невірний формат приватного ключа", "#ef4444")
 
     def sign_file(self) -> None:
         if not self.sign_file_path:
@@ -710,7 +773,26 @@ class SignatureSignVerifyApp(CTkWithDND):
             file_hash = self._hash_file_chunks(self.sign_file_path)
             digest = file_hash.finalize()
             
-            private_key = serialization.load_pem_private_key(self.private_key_data, password=None)
+            # Спроба завантажити ключ без пароля
+            try:
+                private_key = serialization.load_pem_private_key(self.private_key_data, password=None)
+            except ValueError as e:
+                # Якщо ключ зашифровано, запитуємо пароль
+                if "password" in str(e).lower() or "decryption" in str(e).lower():
+                    password = self._prompt_for_password()
+                    if password is None:
+                        self.after(0, lambda: self._on_sign_error("Скасовано: потрібен пароль для ключа"))
+                        return
+                    try:
+                        password_bytes = password.encode('utf-8')
+                        private_key = serialization.load_pem_private_key(self.private_key_data, password=password_bytes)
+                    except ValueError:
+                        self.after(0, lambda: self._on_sign_error("Невірний пароль або формат ключа"))
+                        return
+                else:
+                    self.after(0, lambda: self._on_sign_error(f"Помилка приватного ключа: {str(e)}"))
+                    return
+            
             signature = private_key.sign(
                 digest,
                 padding.PSS(
@@ -730,8 +812,6 @@ class SignatureSignVerifyApp(CTkWithDND):
             
         except OSError as e:
             self.after(0, lambda: self._on_sign_error(f"Помилка читання файлу: {str(e)}"))
-        except ValueError as e:
-            self.after(0, lambda: self._on_sign_error(f"Помилка приватного ключа: {str(e)}"))
         except Exception as e:
             self.after(0, lambda: self._on_sign_error(f"Помилка підписування: {str(e)}"))
 
@@ -754,10 +834,11 @@ class SignatureSignVerifyApp(CTkWithDND):
             return
 
         self.verify_file_path = path
-        # Оновлюємо мітку до стану "Заповнено"
+        # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
         self.verify_file_label.configure(
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
+            compound="none",
             justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
@@ -780,10 +861,11 @@ class SignatureSignVerifyApp(CTkWithDND):
             serialization.load_pem_public_key(key_bytes)
             self.public_key_data = key_bytes
             self.public_key_path = path
-            # Оновлюємо мітку до стану "Заповнено"
+            # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
             self.public_key_label.configure(
                 text=f"Обрано ключ:\n{os.path.basename(path)}",
                 image="",
+                compound="none",
                 justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
@@ -800,10 +882,11 @@ class SignatureSignVerifyApp(CTkWithDND):
             return
 
         self.signature_path = path
-        # Оновлюємо мітку до стану "Заповнено"
+        # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
         self.signature_label.configure(
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
+            compound="none",
             justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
