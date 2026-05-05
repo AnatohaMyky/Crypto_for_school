@@ -5,7 +5,11 @@ import os
 import sys
 from typing import Callable
 from PIL import Image
+import datetime
 
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
@@ -358,33 +362,49 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         self._generation_thread.start()
 
     def _generate_keys_thread(self) -> None:
-        """Генерація ключів в окремому потоці."""
+        """Генерація ключів та сертифіката в окремому потоці."""
         try:
             private_key = rsa.generate_private_key(public_exponent=65537, key_size=self._key_size)
             public_key = private_key.public_key()
 
-            # Отримуємо пароль
-            # password = self.password_entry.get()
-            # if password:
-            #     password_bytes = password.encode('utf-8')
-            #     encryption_algorithm = serialization.BestAvailableEncryption(password_bytes)
-            #     encryption_info = f"RSA {self._key_size}, PEM (зашифровано)"
-            # else:
-            #     encryption_algorithm = serialization.NoEncryption()
-            #     encryption_info = f"RSA {self._key_size}, PEM"
-            #     self.after(0, lambda: self._set_status("⚠️ Ключі збережено без шифрування (порожній пароль)", "#f59e0b"))
             encryption_algorithm = serialization.NoEncryption()
-            encryption_info = f"RSA {self._key_size}, PEM"
+            encryption_info = f"RSA {self._key_size}, PEM (Термін: 1 рік)"
             
+            # Зберігаємо приватний ключ як і раніше
             self.private_key_pem = private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.PKCS8,
                 encryption_algorithm=encryption_algorithm,
             )
-            self.public_key_pem = public_key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo,
-            )
+
+            # --- НОВА ЛОГІКА: Створення сертифіката X.509 замість голого ключа ---
+            
+            # Задаємо ім'я власника сертифіката (можна розширити в майбутньому)
+            subject = issuer = x509.Name([
+                x509.NameAttribute(NameOID.COMMON_NAME, u"School Digital Signature User"),
+            ])
+
+            # Задаємо термін дії (від зараз і на 365 днів вперед)
+            valid_from = datetime.datetime.now(datetime.timezone.utc)
+            valid_to = valid_from + datetime.timedelta(days=365)
+
+            # Будуємо сертифікат
+            cert = x509.CertificateBuilder().subject_name(
+                subject
+            ).issuer_name(
+                issuer
+            ).public_key(
+                public_key
+            ).serial_number(
+                x509.random_serial_number()
+            ).not_valid_before(
+                valid_from
+            ).not_valid_after(
+                valid_to
+            ).sign(private_key, hashes.SHA256()) # Підписуємо сертифікат нашим приватним ключем
+
+            # Зберігаємо сертифікат у форматі PEM (це і буде наш "публічний ключ")
+            self.public_key_pem = cert.public_bytes(serialization.Encoding.PEM)
 
             # Оновлюємо UI в головному потоці
             self.after(0, lambda: self._on_keys_generated(encryption_info))
@@ -432,10 +452,10 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             return
 
         file_path = filedialog.asksaveasfilename(
-            title="Зберегти публічний ключ",
-            defaultextension=".pem",
-            initialfile="public_key.pem",
-            filetypes=[("PEM files", "*.pem"), ("All files", "*.*")],
+            title="Зберегти сертифікат (публічний ключ)",
+            defaultextension=".crt",
+            initialfile="certificate.crt",
+            filetypes=[("Certificate files", "*.crt"), ("PEM files", "*.pem"), ("All files", "*.*")],
         )
         if not file_path:
             return

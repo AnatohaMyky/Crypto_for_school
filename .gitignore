@@ -8,6 +8,7 @@ __pycache__/
 *.docx
 *.pdf
 *.sig
+*.crt
 # Ігноруємо інструкцію
 README_INSTRUCTION.md
 Create_instruct.py

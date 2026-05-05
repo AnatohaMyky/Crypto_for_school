@@ -3,10 +3,12 @@ from tkinter import filedialog
 import threading
 import os
 import sys
+import datetime
 from typing import Callable
 from tkinterdnd2 import TkinterDnD, DND_FILES
 from PIL import Image
 
+from cryptography import x509
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, utils
@@ -668,21 +670,39 @@ class SignatureSignVerifyApp(CTkWithDND):
             self.public_key_drop_frame.configure(border_color=("#374151", "#9ca3af"))
             return
 
+        # Спробуємо завантажити як X.509 сертифікат спочатку
+        cert_loaded = False
         try:
-            serialization.load_pem_public_key(key_bytes)
+            cert = x509.load_pem_x509_certificate(key_bytes)
+            cert_loaded = True
             self.public_key_data = key_bytes
             self.public_key_path = path
             # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
             self.public_key_label.configure(
-                text=f"Обрано ключ:\n{os.path.basename(path)}",
+                text=f"Обрано сертифікат:\n{os.path.basename(path)}",
                 image="",
                 compound="none",
             justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
-            self._set_status("✅ Публічний ключ завантажено (drag-and-drop)", "#22c55e")
+            self._set_status("✅ Сертифікат завантажено (drag-and-drop)", "#22c55e")
         except ValueError:
-            self._set_status("❌ Помилка: Невірний формат публічного ключа", "#ef4444")
+            # Fallback: спробуємо завантажити як звичайний публічний ключ
+            try:
+                serialization.load_pem_public_key(key_bytes)
+                self.public_key_data = key_bytes
+                self.public_key_path = path
+                # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
+                self.public_key_label.configure(
+                    text=f"Обрано ключ:\n{os.path.basename(path)}",
+                    image="",
+                    compound="none",
+                justify="center",
+                    text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+                )
+                self._set_status("✅ Публічний ключ завантажено (drag-and-drop)", "#22c55e")
+            except ValueError:
+                self._set_status("❌ Помилка: Невірний формат публічного ключа або сертифіката", "#ef4444")
         # Повертаємо колір рамки до стандартного після обробки
         self.public_key_drop_frame.configure(border_color=("#374151", "#9ca3af"))
 
@@ -1043,7 +1063,7 @@ class SignatureSignVerifyApp(CTkWithDND):
     def select_public_key(self) -> None:
         path = filedialog.askopenfilename(
             title="Оберіть публічний ключ",
-            filetypes=[("PEM files", "*.pem"), ("All files", "*.*")],
+            filetypes=[("Certificate files", "*.crt"), ("PEM files", "*.pem"), ("All files", "*.*")],
         )
         if not path:
             return
@@ -1053,21 +1073,37 @@ class SignatureSignVerifyApp(CTkWithDND):
             self._set_status("❌ Помилка: Не вдалося прочитати публічний ключ", "#ef4444")
             return
 
+        # Спробуємо завантажити як X.509 сертифікат спочатку
         try:
-            serialization.load_pem_public_key(key_bytes)
+            cert = x509.load_pem_x509_certificate(key_bytes)
             self.public_key_data = key_bytes
             self.public_key_path = path
             # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
             self.public_key_label.configure(
-                text=f"Обрано ключ:\n{os.path.basename(path)}",
+                text=f"Обрано сертифікат:\n{os.path.basename(path)}",
                 image="",
             compound="none",
             justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
-            self._set_status("✅ Публічний ключ завантажено", "#22c55e")
+            self._set_status("✅ Сертифікат завантажено", "#22c55e")
         except ValueError:
-            self._set_status("❌ Помилка: Невірний формат публічного ключа", "#ef4444")
+            # Fallback: спробуємо завантажити як звичайний публічний ключ
+            try:
+                serialization.load_pem_public_key(key_bytes)
+                self.public_key_data = key_bytes
+                self.public_key_path = path
+                # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
+                self.public_key_label.configure(
+                    text=f"Обрано ключ:\n{os.path.basename(path)}",
+                    image="",
+                compound="none",
+            justify="center",
+                    text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
+                )
+                self._set_status("✅ Публічний ключ завантажено", "#22c55e")
+            except ValueError:
+                self._set_status("❌ Помилка: Невірний формат публічного ключа або сертифіката", "#ef4444")
 
     def select_signature_file(self) -> None:
         path = filedialog.askopenfilename(
@@ -1131,11 +1167,29 @@ class SignatureSignVerifyApp(CTkWithDND):
                 self.after(0, lambda: self._on_verify_error(f"Не вдалося прочитати файл підпису: {str(e)}"))
                 return
             
+            # Спробуємо завантажити як X.509 сертифікат спочатку
+            public_key = None
             try:
-                public_key = serialization.load_pem_public_key(self.public_key_data)
-            except ValueError as e:
-                self.after(0, lambda: self._on_verify_error(f"Помилка публічного ключа: {str(e)}"))
-                return
+                cert = x509.load_pem_x509_certificate(self.public_key_data)
+                
+                # Перевіряємо термін дії сертифіката
+                now = datetime.datetime.now(datetime.timezone.utc)
+                if now < cert.not_valid_before_utc:
+                    self.after(0, lambda: self._on_verify_error("Сертифікат ще не дійсний"))
+                    return
+                elif now > cert.not_valid_after_utc:
+                    self.after(0, lambda: self._on_verify_error("Термін дії сертифіката вийшов"))
+                    return
+                
+                # Витягуємо публічний ключ із сертифіката
+                public_key = cert.public_key()
+            except ValueError:
+                # Fallback: це звичайний публічний ключ
+                try:
+                    public_key = serialization.load_pem_public_key(self.public_key_data)
+                except ValueError as e:
+                    self.after(0, lambda: self._on_verify_error(f"Помилка публічного ключа: {str(e)}"))
+                    return
             
             try:
                 public_key.verify(
