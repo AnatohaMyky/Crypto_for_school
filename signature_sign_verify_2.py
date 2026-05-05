@@ -530,7 +530,7 @@ class SignatureSignVerifyApp(CTkWithDND):
         # Оновлюємо мітку до стану "Заповнено" - повністю приховуємо іконку
         self.sign_file_label.configure(
             text=f"Обрано файл:\n{os.path.basename(path)}",
-            image=None,
+            image="",
             compound="none",
             justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
@@ -557,8 +557,8 @@ class SignatureSignVerifyApp(CTkWithDND):
             self.private_key_label.configure(
                 text=f"Обрано ключ:\n{os.path.basename(path)}",
                 image="",
-                compound="none",
-                justify="center",
+                
+            justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
             self._set_status("✅ Приватний ключ завантажено (drag-and-drop)", "#22c55e")
@@ -577,7 +577,7 @@ class SignatureSignVerifyApp(CTkWithDND):
                             text=f"Обрано ключ:\n{os.path.basename(path)}",
                             image="",
                             compound="none",
-                            justify="center",
+            justify="center",
                             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
                         )
                         self._set_status("✅ Приватний ключ завантажено (з паролем)", "#22c55e")
@@ -599,7 +599,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
             compound="none",
-            justify="center",
+                        justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
         self._set_status("Файл для перевірки обрано (drag-and-drop)", "#60a5fa")
@@ -624,7 +624,7 @@ class SignatureSignVerifyApp(CTkWithDND):
                 text=f"Обрано ключ:\n{os.path.basename(path)}",
                 image="",
                 compound="none",
-                justify="center",
+            justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
             self._set_status("✅ Публічний ключ завантажено (drag-and-drop)", "#22c55e")
@@ -642,7 +642,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
             compound="none",
-            justify="center",
+                        justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
         self._set_status("Файл підпису обрано (drag-and-drop)", "#60a5fa")
@@ -674,13 +674,56 @@ class SignatureSignVerifyApp(CTkWithDND):
         return dialog.get_input()
 
     def _prompt_for_overwrite(self, file_path: str) -> bool:
-        """Запитує підтвердження на перезапис файлу."""
-        dialog = ctk.CTkInputDialog(
-            text=f"Файл '{os.path.basename(file_path)}' вже існує.\nПерезаписати його?",
-            title="Підтвердження перезапису"
+        """Запитує підтвердження на перезапис файлу через модальне вікно."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Підтвердження")
+        dialog.geometry("420x160")
+        dialog.resizable(False, False)
+        dialog.transient(self) # Keep on top of main window
+        
+        result = ctk.BooleanVar(value=False)
+        
+        def on_yes():
+            result.set(True)
+            dialog.grab_release()
+            dialog.destroy()
+            
+        def on_no():
+            result.set(False)
+            dialog.grab_release()
+            dialog.destroy()
+
+        dialog.protocol("WM_DELETE_WINDOW", on_no)
+
+        label = ctk.CTkLabel(
+            dialog, 
+            text=f"Файл '{os.path.basename(file_path)}' вже існує.\nБажаєте перезаписати його?",
+            font=ctk.CTkFont(size=14)
         )
-        result = dialog.get_input()
-        return result is not None and result.lower() in ['так', 'yes', 'y', 'ok', 'okay']
+        label.pack(pady=(25, 20), padx=20)
+
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=20)
+        
+        btn_no = ctk.CTkButton(btn_frame, text="Скасувати", width=120, command=on_no)
+        btn_no.pack(side="left", padx=10, expand=True)
+
+        btn_yes = ctk.CTkButton(
+            btn_frame, 
+            text="Перезаписати", 
+            width=120, 
+            fg_color="#ef4444", 
+            hover_color="#dc2626", 
+            command=on_yes
+        )
+        btn_yes.pack(side="right", padx=10, expand=True)
+
+        # CRITICAL: Wait for window to be drawn before grabbing focus to avoid TclError
+        dialog.wait_visibility()
+        dialog.grab_set()
+        
+        self.wait_window(dialog)
+        return result.get()
 
     def _ensure_sign_button_enabled(self) -> None:
         """Гарантує, що кнопка підписування увімкнена."""
@@ -705,7 +748,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
             compound="none",
-            justify="center",
+                        justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
         self._set_status("Файл для підпису обрано", "#60a5fa")
@@ -733,7 +776,7 @@ class SignatureSignVerifyApp(CTkWithDND):
                 text=f"Обрано ключ:\n{os.path.basename(path)}",
                 image="",
                 compound="none",
-                justify="center",
+            justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
             self._set_status("✅ Приватний ключ завантажено", "#22c55e")
@@ -752,7 +795,7 @@ class SignatureSignVerifyApp(CTkWithDND):
                             text=f"Обрано ключ:\n{os.path.basename(path)}",
                             image="",
                             compound="none",
-                            justify="center",
+            justify="center",
                             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
                         )
                         self._set_status("✅ Приватний ключ завантажено (з паролем)", "#22c55e")
@@ -903,7 +946,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
             compound="none",
-            justify="center",
+                        justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
         self._set_status("Файл для перевірки обрано", "#60a5fa")
@@ -929,8 +972,8 @@ class SignatureSignVerifyApp(CTkWithDND):
             self.public_key_label.configure(
                 text=f"Обрано ключ:\n{os.path.basename(path)}",
                 image="",
-                compound="none",
-                justify="center",
+            compound="none",
+            justify="center",
                 text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
             )
             self._set_status("✅ Публічний ключ завантажено", "#22c55e")
@@ -951,7 +994,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             text=f"Обрано файл:\n{os.path.basename(path)}",
             image="",
             compound="none",
-            justify="center",
+                        justify="center",
             text_color=("gray10", "#DCE4EE"),  # Стандартний колір тексту CustomTkinter
         )
         self._set_status("Файл підпису обрано", "#60a5fa")
