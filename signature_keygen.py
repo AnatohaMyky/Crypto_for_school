@@ -87,21 +87,21 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         self.key_size_menu.grid(row=1, column=1, sticky="ew", padx=14, pady=(0, 10))
 
         # Поле для пароля
-        self.password_label = ctk.CTkLabel(
-            main_frame,
-            text="Пароль шифрування:",
-            font=self.body_font,
-            anchor="w",
-        )
-        self.password_label.grid(row=1, column=2, sticky="ew", padx=14, pady=(0, 10))
+        # self.password_label = ctk.CTkLabel(
+        #     main_frame,
+        #     text="Пароль шифрування:",
+        #     font=self.body_font,
+        #     anchor="w",
+        # )
+        # self.password_label.grid(row=1, column=2, sticky="ew", padx=14, pady=(0, 10))
 
-        self.password_entry = ctk.CTkEntry(
-            main_frame,
-            placeholder_text="Залиште порожнім для без шифрування",
-            show="*",
-            font=self.body_font,
-        )
-        self.password_entry.grid(row=2, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 10))
+        # self.password_entry = ctk.CTkEntry(
+        #     main_frame,
+        #     placeholder_text="Залиште порожнім для без шифрування",
+        #     show="*",
+        #     font=self.body_font,
+        # )
+        # self.password_entry.grid(row=2, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 10))
 
         self.generate_button = ctk.CTkButton(
             main_frame,
@@ -242,8 +242,8 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         if compact:
             self.key_size_label.grid_configure(row=1, column=0, columnspan=3)
             self.key_size_menu.grid_configure(row=2, column=0, columnspan=3)
-            self.password_label.grid_configure(row=3, column=0, columnspan=3)
-            self.password_entry.grid_configure(row=4, column=0, columnspan=3)
+            # self.password_label.grid_configure(row=3, column=0, columnspan=3)
+            # self.password_entry.grid_configure(row=4, column=0, columnspan=3)
             self.generate_button.grid_configure(row=5, column=0, columnspan=3)
             self.save_private_button.grid_configure(row=6, column=0, columnspan=3)
             self.save_public_button.grid_configure(row=7, column=0, columnspan=3)
@@ -252,8 +252,8 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         else:
             self.key_size_label.grid_configure(row=1, column=0, columnspan=1)
             self.key_size_menu.grid_configure(row=1, column=1, columnspan=1)
-            self.password_label.grid_configure(row=1, column=2, columnspan=1)
-            self.password_entry.grid_configure(row=2, column=0, columnspan=3)
+            # self.password_label.grid_configure(row=1, column=2, columnspan=1)
+            # self.password_entry.grid_configure(row=2, column=0, columnspan=3)
             self.generate_button.grid_configure(row=3, column=0, columnspan=1)
             self.save_private_button.grid_configure(row=3, column=1, columnspan=1)
             self.save_public_button.grid_configure(row=3, column=2, columnspan=1)
@@ -296,7 +296,7 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             button.configure(height=button_h)
         
         # Оновлюємо висоту entry та option menu
-        self.password_entry.configure(height=button_h if button_h > 34 else 32)
+        # self.password_entry.configure(height=button_h if button_h > 34 else 32)
         self.key_size_menu.configure(height=button_h if button_h > 34 else 32)
 
     def generate_key_pair(self) -> None:
@@ -322,16 +322,18 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             public_key = private_key.public_key()
 
             # Отримуємо пароль
-            password = self.password_entry.get()
-            if password:
-                password_bytes = password.encode('utf-8')
-                encryption_algorithm = serialization.BestAvailableEncryption(password_bytes)
-                encryption_info = f"RSA {self._key_size}, PEM (зашифровано)"
-            else:
-                encryption_algorithm = serialization.NoEncryption()
-                encryption_info = f"RSA {self._key_size}, PEM"
-                self.after(0, lambda: self._set_status("⚠️ Ключі збережено без шифрування (порожній пароль)", "#f59e0b"))
-
+            # password = self.password_entry.get()
+            # if password:
+            #     password_bytes = password.encode('utf-8')
+            #     encryption_algorithm = serialization.BestAvailableEncryption(password_bytes)
+            #     encryption_info = f"RSA {self._key_size}, PEM (зашифровано)"
+            # else:
+            #     encryption_algorithm = serialization.NoEncryption()
+            #     encryption_info = f"RSA {self._key_size}, PEM"
+            #     self.after(0, lambda: self._set_status("⚠️ Ключі збережено без шифрування (порожній пароль)", "#f59e0b"))
+            encryption_algorithm = serialization.NoEncryption()
+            encryption_info = f"RSA {self._key_size}, PEM"
+            
             self.private_key_pem = private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.PKCS8,
