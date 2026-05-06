@@ -4,6 +4,7 @@ import threading
 import os
 import sys
 import datetime
+import time
 from typing import Callable
 from tkinterdnd2 import TkinterDnD, DND_FILES
 from PIL import Image
@@ -11,7 +12,7 @@ from PIL import Image
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding, utils
+from cryptography.hazmat.primitives.asymmetric import padding, utils, rsa, ec, ed25519
 
 class CTkWithDND(ctk.CTk, TkinterDnD.DnDWrapper):
     """Гібридний клас для поєднання CustomTkinter та Drag-and-Drop."""
@@ -46,6 +47,8 @@ class SignatureSignVerifyApp(CTkWithDND):
         
         # Константи для chunking
         self.CHUNK_SIZE = 65536  # 64 KB
+        self.MAX_FILE_SIZE_MB = 100  # Максимальний розмір файлу 100 МБ
+        self.MAX_FILE_SIZE_BYTES = self.MAX_FILE_SIZE_MB * 1024 * 1024
 
         self._build_ui()
         self.bind("<Configure>", self._on_window_resize)
@@ -72,6 +75,7 @@ class SignatureSignVerifyApp(CTkWithDND):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)
+        self.grid_rowconfigure(2, weight=0)
 
         # Створюємо tabview замість main_frame
         self.tabview = ctk.CTkTabview(self, corner_radius=12)
@@ -96,6 +100,15 @@ class SignatureSignVerifyApp(CTkWithDND):
             anchor="w",
         )
         self.status_label.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 14))
+
+        self.metrics_label = ctk.CTkLabel(
+            self,
+            text="",
+            font=self.body_font,
+            text_color=("#3b82f6", "#60a5fa"),  # Синій колір для акценту
+            anchor="w",
+        )
+        self.metrics_label.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 14))
 
         # Theme switch
         self.theme_switch = ctk.CTkSwitch(
@@ -925,8 +938,19 @@ class SignatureSignVerifyApp(CTkWithDND):
         if self._operation_thread and self._operation_thread.is_alive():
             return
 
+        # Перевірка розміру файлу
+        try:
+            file_size = os.path.getsize(self.sign_file_path)
+            if file_size > self.MAX_FILE_SIZE_BYTES:
+                self._set_status(f"❌ Помилка: Файл занадто великий! Ліміт {self.MAX_FILE_SIZE_MB} МБ.", "#ef4444")
+                return
+        except OSError:
+            self._set_status("❌ Помилка: Не вдалося перевірити розмір файлу.", "#ef4444")
+            return
+
         # Блокуємо кнопки та показуємо статус
         self.sign_button.configure(state="disabled")
+        self.metrics_label.configure(text="")  # Clear old metrics
         self._set_status("⏳ Підписування файлу, зачекайте...", "#f59e0b")
         
         # Запускаємо підписування в окремому потоці
@@ -968,14 +992,31 @@ class SignatureSignVerifyApp(CTkWithDND):
                     return
             
             try:
-                signature = private_key.sign(
-                    digest,
-                    padding.PSS(
-                        mgf=padding.MGF1(hashes.SHA256()),
-                        salt_length=padding.PSS.MAX_LENGTH,
-                    ),
-                    utils.Prehashed(hashes.SHA256()),
-                )
+                # Multi-algorithm signing support with timing
+                start_time = time.perf_counter()
+                
+                if isinstance(private_key, rsa.RSAPrivateKey):
+                    signature = private_key.sign(
+                        digest,
+                        padding.PSS(
+                            mgf=padding.MGF1(hashes.SHA256()),
+                            salt_length=padding.PSS.MAX_LENGTH,
+                        ),
+                        utils.Prehashed(hashes.SHA256()),
+                    )
+                elif isinstance(private_key, ec.EllipticCurvePrivateKey):
+                    signature = private_key.sign(digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+                elif isinstance(private_key, ed25519.Ed25519PrivateKey):
+                    # Ed25519 doesn't support Prehashed, read full file
+                    with open(self.sign_file_path, "rb") as f:
+                        full_data = f.read()
+                    signature = private_key.sign(full_data)
+                else:
+                    raise ValueError("Непідтримуваний тип приватного ключа")
+                
+                end_time = time.perf_counter()
+                duration_ms = (end_time - start_time) * 1000
+                sig_size = len(signature)
             except ValueError as e:
                 self.after(0, lambda: self._on_sign_error(f"Помилка створення підпису: {str(e)}"))
                 return
@@ -984,7 +1025,7 @@ class SignatureSignVerifyApp(CTkWithDND):
             signature_path = f"{self.sign_file_path}.sig"
             if os.path.exists(signature_path):
                 # Запитуємо підтвердження в головному потоці
-                self.after(0, lambda: self._check_overwrite_confirmation(signature_path, signature))
+                self.after(0, lambda: self._check_overwrite_confirmation(signature_path, signature, duration_ms, sig_size))
                 return
 
             # Зберігаємо підпис
@@ -996,20 +1037,20 @@ class SignatureSignVerifyApp(CTkWithDND):
                 return
             
             # Оновлюємо UI в головному потоці
-            self.after(0, lambda: self._on_sign_completed(signature_path))
+            self.after(0, lambda: self._on_sign_completed(signature_path, duration_ms, sig_size))
             
         except Exception as e:
             self.after(0, lambda: self._on_sign_error(f"Неочікувана помилка підписування: {type(e).__name__}: {str(e)}"))
         finally:
             self._ensure_sign_button_enabled()
 
-    def _check_overwrite_confirmation(self, signature_path: str, signature: bytes) -> None:
+    def _check_overwrite_confirmation(self, signature_path: str, signature: bytes, duration_ms: float, sig_size: int) -> None:
         """Перевіряє підтвердження перезапису в головному потоці."""
         if self._prompt_for_overwrite(signature_path):
             # Користувач підтвердив перезапис
             self._operation_thread = threading.Thread(
                 target=self._save_signature_after_confirmation,
-                args=(signature_path, signature),
+                args=(signature_path, signature, duration_ms, sig_size),
                 daemon=True
             )
             self._operation_thread.start()
@@ -1018,22 +1059,21 @@ class SignatureSignVerifyApp(CTkWithDND):
             self._set_status("Скасовано користувачем", "#f59e0b")
             self.sign_button.configure(state="normal")
 
-    def _save_signature_after_confirmation(self, signature_path: str, signature: bytes) -> None:
+    def _save_signature_after_confirmation(self, signature_path: str, signature: bytes, duration_ms: float, sig_size: int) -> None:
         """Зберігає підпис після підтвердження перезапису."""
         try:
             with open(signature_path, "wb") as signature_file:
                 signature_file.write(signature)
-            self.after(0, lambda: self._on_sign_completed(signature_path))
+            self.after(0, lambda: self._on_sign_completed(signature_path, duration_ms, sig_size))
         except OSError as e:
             self.after(0, lambda: self._on_sign_error(f"Помилка збереження підпису: {str(e)}"))
-        except Exception as e:
-            self.after(0, lambda: self._on_sign_error(f"Неочікувана помилка збереження: {type(e).__name__}: {str(e)}"))
         finally:
             self._ensure_sign_button_enabled()
 
-    def _on_sign_completed(self, signature_path: str) -> None:
+    def _on_sign_completed(self, signature_path: str, duration_ms: float, sig_size: int) -> None:
         """Обробка успішного підписування."""
         self._set_status("✅ Підпис створено та збережено (.sig)", "#22c55e")
+        self.metrics_label.configure(text=f"⏱ Час створення підпису: {duration_ms:.2f} мс | 📦 Розмір підпису: {sig_size} байт")
         self.sign_button.configure(state="normal")
 
     def _on_sign_error(self, error_msg: str) -> None:
@@ -1137,8 +1177,19 @@ class SignatureSignVerifyApp(CTkWithDND):
         if self._operation_thread and self._operation_thread.is_alive():
             return
 
+        # Перевірка розміру файлу
+        try:
+            file_size = os.path.getsize(self.verify_file_path)
+            if file_size > self.MAX_FILE_SIZE_BYTES:
+                self._set_status(f"❌ Помилка: Файл занадто великий! Ліміт {self.MAX_FILE_SIZE_MB} МБ.", "#ef4444")
+                return
+        except OSError:
+            self._set_status("❌ Помилка: Не вдалося перевірити розмір файлу.", "#ef4444")
+            return
+
         # Блокуємо кнопки та показуємо статус
         self.verify_button.configure(state="disabled")
+        self.metrics_label.configure(text="")  # Clear old metrics
         self._set_status("⏳ Перевірка підпису, зачекайте...", "#f59e0b")
         
         # Запускаємо перевірку в окремому потоці
@@ -1192,36 +1243,54 @@ class SignatureSignVerifyApp(CTkWithDND):
                     return
             
             try:
-                public_key.verify(
-                    signature_data,
-                    digest,
-                    padding.PSS(
-                        mgf=padding.MGF1(hashes.SHA256()),
-                        salt_length=padding.PSS.MAX_LENGTH,
-                    ),
-                    utils.Prehashed(hashes.SHA256()),
-                )
+                # Multi-algorithm verification support with timing
+                start_time = time.perf_counter()
+                
+                if isinstance(public_key, rsa.RSAPublicKey):
+                    public_key.verify(
+                        signature_data,
+                        digest,
+                        padding.PSS(
+                            mgf=padding.MGF1(hashes.SHA256()),
+                            salt_length=padding.PSS.MAX_LENGTH,
+                        ),
+                        utils.Prehashed(hashes.SHA256()),
+                    )
+                elif isinstance(public_key, ec.EllipticCurvePublicKey):
+                    public_key.verify(signature_data, digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+                elif isinstance(public_key, ed25519.Ed25519PublicKey):
+                    # Ed25519 doesn't support Prehashed, read full file
+                    with open(self.verify_file_path, "rb") as f:
+                        full_data = f.read()
+                    public_key.verify(signature_data, full_data)
+                else:
+                    raise ValueError("Непідтримуваний тип публічного ключа")
+                
+                end_time = time.perf_counter()
+                duration_ms = (end_time - start_time) * 1000
             except InvalidSignature:
-                self.after(0, lambda: self._on_verify_completed(False))
+                self.after(0, lambda: self._on_verify_completed(False, 0.0))
                 return
             except ValueError as e:
                 self.after(0, lambda: self._on_verify_error(f"Помилка перевірки підпису: {str(e)}"))
                 return
             
             # Оновлюємо UI в головному потоці
-            self.after(0, lambda: self._on_verify_completed(True))
+            self.after(0, lambda: self._on_verify_completed(True, duration_ms))
             
         except Exception as e:
             self.after(0, lambda: self._on_verify_error(f"Неочікувана помилка перевірки: {type(e).__name__}: {str(e)}"))
         finally:
             self._ensure_verify_button_enabled()
 
-    def _on_verify_completed(self, is_valid: bool) -> None:
+    def _on_verify_completed(self, is_valid: bool, duration_ms: float = 0.0) -> None:
         """Обробка результату перевірки."""
         if is_valid:
             self._set_status("✅ Підпис дійсний", "#22c55e")
+            self.metrics_label.configure(text=f"⏱ Час перевірки підпису: {duration_ms:.2f} мс")
         else:
             self._set_status("❌ Підпис недійсний: файл або ключ не відповідає", "#ef4444")
+            self.metrics_label.configure(text="")  # Clear metrics for invalid signature
         self.verify_button.configure(state="normal")
 
     def _on_verify_error(self, error_msg: str) -> None:
