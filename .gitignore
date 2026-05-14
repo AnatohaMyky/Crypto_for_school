@@ -12,3 +12,4 @@ __pycache__/
 # Ігноруємо інструкцію
 README_INSTRUCTION.md
 Create_instruct.py
+*benchmark*
