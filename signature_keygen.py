@@ -38,7 +38,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         self._selected_algorithm: str = "RSA"
         self._generation_thread: threading.Thread | None = None
         
-        # Metrics storage
         self._generation_time_ms: float = 0.0
         self._private_key_size_bytes: int = 0
         self._public_key_size_bytes: int = 0
@@ -49,10 +48,8 @@ class SignatureKeyGeneratorApp(ctk.CTk):
     def _get_resource_path(self, relative_path: str) -> str:
         """Отримує абсолютний шлях до ресурсу для PyInstaller та звичайного запуску."""
         try:
-            # PyInstaller розпаковує дані у тимчасову папку _MEIPASS
             base_path = sys._MEIPASS
         except AttributeError:
-            # Звичайний запуск з вихідного коду
             base_path = os.path.dirname(os.path.abspath(__file__))
         
         return os.path.join(base_path, relative_path)
@@ -63,26 +60,21 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         self.status_font = ctk.CTkFont(size=15, weight="bold")
         self.metric_font = ctk.CTkFont(size=16, weight="bold")
         
-        # Завантажуємо іконки
         self._load_icons()
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)
 
-        # Створюємо контейнер для фреймів
         self.container_frame = ctk.CTkFrame(self, corner_radius=12)
         self.container_frame.grid(row=0, column=0, sticky="nsew", padx=16, pady=(16, 8))
         self.container_frame.grid_columnconfigure(0, weight=1)
 
-        # Створюємо обидва фрейми
         self._create_setup_frame()
         self._create_result_frame()
 
-        # Показуємо setup_frame за замовчуванням
         self.setup_frame.grid(row=0, column=0, sticky="nsew", padx=14, pady=14)
 
-        # Статус та елементи керування
         self.status_label = ctk.CTkLabel(
             self,
             text="Статус: Очікування дії...",
@@ -92,7 +84,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         )
         self.status_label.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 14))
 
-        # Theme switch
         self.theme_switch = ctk.CTkSwitch(
             self,
             text="Змінити тему",
@@ -104,7 +95,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         self.update_idletasks()
         self._apply_responsive_layout(self.winfo_width())
 
-        # Створюємо іконку інформації
         self.info_label = ctk.CTkLabel(
             self,
             image=self.icon_info if self.icon_info else None,
@@ -113,11 +103,9 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         )
         self.info_label.place(relx=0.98, rely=0.98, anchor="se")
         
-        # Прив'язуємо hover events до іконки інформації
         self.info_label.bind("<Enter>", self._show_popup)
         self.info_label.bind("<Leave>", self._hide_popup)
 
-        # Створюємо прихований popup фрейм з інформацією про розробника
         self.popup_frame = ctk.CTkFrame(
             self,
             fg_color=("#f3f4f6", "#374151"),
@@ -137,7 +125,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         )
         info_popup_label.pack()
 
-        # Перевірка системної теми та ініціалізація інтерфейсу
         if ctk.get_appearance_mode() == "Light":
             self.theme_switch.select()
             if self.icon_info_light:
@@ -159,7 +146,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         )
         title_label.grid(row=0, column=0, columnspan=2, sticky="ew", padx=14, pady=(12, 20))
 
-        # Вибір алгоритму
         self.algorithm_label = ctk.CTkLabel(
             self.setup_frame,
             text="Алгоритм:",
@@ -177,7 +163,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         self.algorithm_menu.set("RSA")
         self.algorithm_menu.grid(row=1, column=1, sticky="ew", padx=14, pady=(0, 10))
 
-        # Вибір розміру ключа (активний тільки для RSA)
         self.key_size_label = ctk.CTkLabel(
             self.setup_frame,
             text="Розмір ключа:",
@@ -195,7 +180,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         self.key_size_menu.set("2048")
         self.key_size_menu.grid(row=2, column=1, sticky="ew", padx=14, pady=(0, 10))
 
-        # Кнопка генерації
         self.generate_button = ctk.CTkButton(
             self.setup_frame,
             text="Створити пару ключів",
@@ -218,7 +202,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         )
         title_label.grid(row=0, column=0, columnspan=2, sticky="ew", padx=14, pady=(12, 20))
 
-        # Метрики
         self.time_label = ctk.CTkLabel(
             self.result_frame,
             text="Час генерації: -- мс",
@@ -246,7 +229,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         )
         self.public_size_label.grid(row=3, column=0, columnspan=2, sticky="ew", padx=14, pady=(0, 20))
 
-        # Кнопки
         self.save_private_button = ctk.CTkButton(
             self.result_frame,
             text="Зберегти приватний ключ",
@@ -289,7 +271,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         """Обробляє зміну алгоритму."""
         self._selected_algorithm = choice
         
-        # Активуємо/деактивуємо вибір розміру ключа
         if choice == "RSA":
             self.key_size_menu.configure(state="normal")
         else:
@@ -298,14 +279,11 @@ class SignatureKeyGeneratorApp(ctk.CTk):
     def _load_icons(self) -> None:
         """Завантажує іконки для інтерфейсу."""
         try:
-            # Визначаємо шлях до папки з іконками
             icons_dir = self._get_resource_path(os.path.join("assets", "icons"))
             
-            # Шлях до іконок інформації
             info_icon_path = os.path.join(icons_dir, "info.png")
             light_info_icon_path = os.path.join(icons_dir, "light-info.png")
             
-            # Завантажуємо іконки, якщо файли існують 
             if os.path.exists(info_icon_path):
                 self.icon_info = ctk.CTkImage(
                     Image.open(info_icon_path),
@@ -325,7 +303,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
                 print(f"Попередження: іконку light-info не знайдено за шляхом: {light_info_icon_path}")
                 
         except Exception as e:
-            # Якщо виникла помилка при завантаженні іконки
             self.icon_info = None
             self.icon_info_light = None
             print(f"Помилка завантаження іконки: {e}")
@@ -345,12 +322,10 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         """Перемикає між світлою та темною темою."""
         if self.theme_switch.get():
             ctk.set_appearance_mode("light")
-            # Змінюємо іконку на світлу тему
             if self.icon_info_light:
                 self.info_label.configure(image=self.icon_info_light)
         else:
             ctk.set_appearance_mode("dark")
-            # Змінюємо іконку на темну тему
             if self.icon_info:
                 self.info_label.configure(image=self.icon_info)
 
@@ -365,14 +340,12 @@ class SignatureKeyGeneratorApp(ctk.CTk):
 
         self._compact_layout = compact
         if compact:
-            # Setup frame compact layout
             self.algorithm_label.grid_configure(row=1, column=0, columnspan=2)
             self.algorithm_menu.grid_configure(row=2, column=0, columnspan=2)
             self.key_size_label.grid_configure(row=3, column=0, columnspan=2)
             self.key_size_menu.grid_configure(row=4, column=0, columnspan=2)
             self.generate_button.grid_configure(row=5, column=0, columnspan=2)
             
-            # Result frame compact layout
             self.time_label.grid_configure(row=1, column=0, columnspan=2)
             self.private_size_label.grid_configure(row=2, column=0, columnspan=2)
             self.public_size_label.grid_configure(row=3, column=0, columnspan=2)
@@ -380,14 +353,12 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             self.save_public_button.grid_configure(row=5, column=0, columnspan=2)
             self.back_button.grid_configure(row=6, column=0, columnspan=2)
         else:
-            # Setup frame normal layout
             self.algorithm_label.grid_configure(row=1, column=0, columnspan=1)
             self.algorithm_menu.grid_configure(row=1, column=1, columnspan=1)
             self.key_size_label.grid_configure(row=2, column=0, columnspan=1)
             self.key_size_menu.grid_configure(row=2, column=1, columnspan=1)
             self.generate_button.grid_configure(row=3, column=0, columnspan=2)
             
-            # Result frame normal layout
             self.time_label.grid_configure(row=1, column=0, columnspan=2)
             self.private_size_label.grid_configure(row=2, column=0, columnspan=2)
             self.public_size_label.grid_configure(row=3, column=0, columnspan=2)
@@ -400,7 +371,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
 
     def _update_wrap_lengths(self, width: int) -> None:
         wrap = max(280, width - 140)
-        # Update wrap lengths for metric labels in result frame
         self.time_label.configure(wraplength=wrap)
         self.private_size_label.configure(wraplength=wrap)
         self.public_size_label.configure(wraplength=wrap)
@@ -427,11 +397,9 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         self.body_font.configure(size=body_size)
         self.status_font.configure(size=status_size)
 
-        # Update all buttons in both frames
         for button in (self.generate_button, self.save_private_button, self.save_public_button, self.back_button):
             button.configure(height=button_h)
         
-        # Update option menus
         self.algorithm_menu.configure(height=button_h if button_h > 34 else 32)
         self.key_size_menu.configure(height=button_h if button_h > 34 else 32)
 
@@ -440,11 +408,9 @@ class SignatureKeyGeneratorApp(ctk.CTk):
         if self._generation_thread and self._generation_thread.is_alive():
             return
         
-        # Блокуємо кнопку та показуємо статус
         self.generate_button.configure(state="disabled")
         self._set_status("⏳ Генерація ключів, зачекайте...", "#f59e0b")
         
-        # Запускаємо генерацію в окремому потоці
         self._generation_thread = threading.Thread(
             target=self._generate_keys_thread,
             daemon=True
@@ -477,14 +443,12 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             
             encryption_algorithm = serialization.NoEncryption()
             
-            # Зберігаємо приватний ключ
             self.private_key_pem = private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.PKCS8,
                 encryption_algorithm=encryption_algorithm,
             )
 
-            # Створення сертифіката X.509
             subject = issuer = x509.Name([
                 x509.NameAttribute(NameOID.COMMON_NAME, u"School Digital Signature User"),
             ])
@@ -492,7 +456,6 @@ class SignatureKeyGeneratorApp(ctk.CTk):
             valid_from = datetime.datetime.now(datetime.timezone.utc)
             valid_to = valid_from + datetime.timedelta(days=365)
 
-            # Будуємо сертифікат з правильним алгоритмом підпису
             cert_builder = x509.CertificateBuilder().subject_name(
                 subject
             ).issuer_name(
@@ -507,22 +470,18 @@ class SignatureKeyGeneratorApp(ctk.CTk):
                 valid_to
             )
             
-            # Критичний нюанс: для Ed25519 використовуємо None, для інших - SHA256
             if self._selected_algorithm == "Ed25519":
                 cert = cert_builder.sign(private_key, None)
             else:
                 cert = cert_builder.sign(private_key, hashes.SHA256())
 
-            # Зберігаємо сертифікат у форматі PEM
             self.public_key_pem = cert.public_bytes(serialization.Encoding.PEM)
 
-            # Обчислюємо метрики
             end_time = time.perf_counter()
             self._generation_time_ms = (end_time - start_time) * 1000
             self._private_key_size_bytes = len(self.private_key_pem)
             self._public_key_size_bytes = len(self.public_key_pem)
 
-            # Оновлюємо UI в головному потоці
             self.after(0, lambda: self._on_keys_generated(encryption_info))
             
         except Exception as e:
@@ -530,12 +489,10 @@ class SignatureKeyGeneratorApp(ctk.CTk):
 
     def _on_keys_generated(self, encryption_info: str) -> None:
         """Обробка успішної генерації ключів з метриками."""
-        # Оновлюємо мітки з метриками
         self.time_label.configure(text=f"Час генерації: {self._generation_time_ms:.2f} мс")
         self.private_size_label.configure(text=f"Розмір приватного ключа: {self._private_key_size_bytes} байт")
         self.public_size_label.configure(text=f"Розмір публічного сертифіката: {self._public_key_size_bytes} байт")
         
-        # Перемикаємося на фрейм результатів
         self.show_result_frame()
         
         self._set_status(f"✅ {self._selected_algorithm} ключі успішно згенеровано", "#22c55e")
